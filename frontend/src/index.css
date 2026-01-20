@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-dark-950 text-dark-50 font-sans antialiased;
+  }
+  
+  html, body, #root {
+    @apply h-full;
+  }
+}
+
+@layer utilities {
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-dark-900;
+  }
+  
+  .glass-effect {
+    @apply bg-dark-900/40 backdrop-blur-lg border border-dark-800/50;
+  }
+}
