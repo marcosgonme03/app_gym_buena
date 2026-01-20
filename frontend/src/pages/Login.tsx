@@ -129,7 +129,7 @@ export const Login: React.FC = () => {
           value={formData.email}
           onChange={handleChange}
           error={errors.email}
-          placeholder="tu@email.com"
+          placeholder="tu@email.commm"
           autoComplete="email"
           required
         />
