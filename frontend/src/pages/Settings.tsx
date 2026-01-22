@@ -257,9 +257,9 @@ export const Settings: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-dark-950">
+    <div className="min-h-screen bg-dark-950 dark:bg-dark-950 light:bg-gray-50">
       {/* Header */}
-      <header className="bg-dark-900 border-b border-dark-800">
+      <header className="bg-dark-900 border-b border-dark-800 dark:bg-dark-900 dark:border-dark-800 light:bg-white light:border-gray-200">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -271,11 +271,11 @@ export const Settings: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <h1 className="text-2xl font-bold text-dark-50">Ajustes</h1>
+              <h1 className="text-2xl font-bold text-dark-50 dark:text-dark-50 light:text-gray-900">Ajustes</h1>
             </div>
             <button
               onClick={handleSignOut}
-              className="flex items-center gap-2 px-4 py-2 bg-dark-800 hover:bg-dark-700 text-dark-200 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-dark-800 hover:bg-dark-700 text-dark-200 dark:bg-dark-800 dark:hover:bg-dark-700 dark:text-dark-200 light:bg-gray-200 light:hover:bg-gray-300 light:text-gray-900 rounded-lg transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -301,8 +301,8 @@ export const Settings: React.FC = () => {
         )}
 
         {/* Foto de perfil */}
-        <div className="bg-dark-900 border border-dark-800 rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold text-dark-50 mb-4">Foto de Perfil</h2>
+        <div className="bg-dark-900 border border-dark-800 dark:bg-dark-900 dark:border-dark-800 light:bg-white light:border-gray-200 rounded-lg p-6 mb-6">
+          <h2 className="text-lg font-semibold text-dark-50 dark:text-dark-50 light:text-gray-900 mb-4">Foto de Perfil</h2>
           
           {showCamera ? (
             <div className="space-y-4">
@@ -325,7 +325,7 @@ export const Settings: React.FC = () => {
                 </button>
                 <button
                   onClick={stopCamera}
-                  className="px-6 py-2 bg-dark-800 hover:bg-dark-700 text-dark-200 rounded-lg transition-colors"
+                  className="px-6 py-2 bg-dark-800 hover:bg-dark-700 text-dark-200 dark:bg-dark-800 dark:hover:bg-dark-700 dark:text-dark-200 light:bg-gray-200 light:hover:bg-gray-300 light:text-gray-900 rounded-lg transition-colors"
                 >
                   Cancelar
                 </button>
@@ -357,7 +357,7 @@ export const Settings: React.FC = () => {
                   <button
                     onClick={startCamera}
                     disabled={uploadingAvatar}
-                    className="px-4 py-2 bg-dark-800 hover:bg-dark-700 disabled:bg-dark-700 text-dark-200 rounded-lg transition-colors flex items-center gap-2"
+                    className="px-4 py-2 bg-dark-800 hover:bg-dark-700 disabled:bg-dark-700 text-dark-200 dark:bg-dark-800 dark:hover:bg-dark-700 dark:text-dark-200 light:bg-gray-200 light:hover:bg-gray-300 light:text-gray-900 rounded-lg transition-colors flex items-center gap-2"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -366,7 +366,7 @@ export const Settings: React.FC = () => {
                     Tomar foto
                   </button>
                 </div>
-                <p className="text-xs text-dark-500">
+                <p className="text-xs text-dark-500 dark:text-dark-500 light:text-gray-500">
                   JPG, PNG o GIF. Max 2MB.
                 </p>
               </div>
@@ -375,12 +375,12 @@ export const Settings: React.FC = () => {
         </div>
 
         {/* Apariencia */}
-        <div className="bg-dark-900 border border-dark-800 rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold text-dark-50 mb-4">Apariencia</h2>
+        <div className="bg-dark-900 border border-dark-800 dark:bg-dark-900 dark:border-dark-800 light:bg-white light:border-gray-200 rounded-lg p-6 mb-6">
+          <h2 className="text-lg font-semibold text-dark-50 dark:text-dark-50 light:text-gray-900 mb-4">Apariencia</h2>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-dark-200 font-medium">Tema</p>
-              <p className="text-sm text-dark-400">
+              <p className="text-dark-200 dark:text-dark-200 light:text-gray-900 font-medium">Tema</p>
+              <p className="text-sm text-dark-400 dark:text-dark-400 light:text-gray-600">
                 {theme === 'dark' ? 'Modo Oscuro' : 'Modo Claro'}
               </p>
             </div>
@@ -400,12 +400,12 @@ export const Settings: React.FC = () => {
         </div>
 
         {/* Información personal */}
-        <div className="bg-dark-900 border border-dark-800 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-dark-50 mb-4">Información Personal</h2>
+        <div className="bg-dark-900 border border-dark-800 dark:bg-dark-900 dark:border-dark-800 light:bg-white light:border-gray-200 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-dark-50 dark:text-dark-50 light:text-gray-900 mb-4">Información Personal</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="name" className="block text-sm font-medium text-dark-300 mb-2">
+                <label htmlFor="name" className="block text-sm font-medium text-dark-300 dark:text-dark-300 light:text-gray-700 mb-2">
                   Nombre
                 </label>
                 <input
@@ -414,13 +414,13 @@ export const Settings: React.FC = () => {
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-4 py-2 bg-dark-800 border border-dark-700 dark:bg-dark-800 dark:border-dark-700 dark:text-dark-100 light:bg-white light:border-gray-300 light:text-gray-900 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   required
                 />
               </div>
 
               <div>
-                <label htmlFor="last_name" className="block text-sm font-medium text-dark-300 mb-2">
+                <label htmlFor="last_name" className="block text-sm font-medium text-dark-300 dark:text-dark-300 light:text-gray-700 mb-2">
                   Apellidos
                 </label>
                 <input
@@ -429,13 +429,13 @@ export const Settings: React.FC = () => {
                   name="last_name"
                   value={formData.last_name}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-4 py-2 bg-dark-800 border border-dark-700 dark:bg-dark-800 dark:border-dark-700 dark:text-dark-100 light:bg-white light:border-gray-300 light:text-gray-900 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-dark-300 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-dark-300 dark:text-dark-300 light:text-gray-700 mb-2">
                 Email
               </label>
               <input
@@ -444,15 +444,15 @@ export const Settings: React.FC = () => {
                 name="email"
                 value={formData.email}
                 disabled
-                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-400 cursor-not-allowed"
+                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 dark:bg-dark-800 dark:border-dark-700 dark:text-dark-400 light:bg-gray-100 light:border-gray-300 light:text-gray-500 rounded-lg text-dark-400 cursor-not-allowed"
               />
-              <p className="text-xs text-dark-500 mt-1">
+              <p className="text-xs text-dark-500 dark:text-dark-500 light:text-gray-500 mt-1">
                 El email no se puede cambiar
               </p>
             </div>
 
             <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-dark-300 mb-2">
+              <label htmlFor="phone" className="block text-sm font-medium text-dark-300 dark:text-dark-300 light:text-gray-700 mb-2">
                 Teléfono
               </label>
               <input
@@ -462,12 +462,12 @@ export const Settings: React.FC = () => {
                 value={formData.phone}
                 onChange={handleChange}
                 placeholder="+34 600 000 000"
-                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 dark:bg-dark-800 dark:border-dark-700 dark:text-dark-100 light:bg-white light:border-gray-300 light:text-gray-900 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
 
             <div>
-              <label htmlFor="date_of_birth" className="block text-sm font-medium text-dark-300 mb-2">
+              <label htmlFor="date_of_birth" className="block text-sm font-medium text-dark-300 dark:text-dark-300 light:text-gray-700 mb-2">
                 Fecha de Nacimiento
               </label>
               <input
@@ -476,12 +476,12 @@ export const Settings: React.FC = () => {
                 name="date_of_birth"
                 value={formData.date_of_birth}
                 onChange={handleChange}
-                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 dark:bg-dark-800 dark:border-dark-700 dark:text-dark-100 light:bg-white light:border-gray-300 light:text-gray-900 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
 
             <div>
-              <label htmlFor="bio" className="block text-sm font-medium text-dark-300 mb-2">
+              <label htmlFor="bio" className="block text-sm font-medium text-dark-300 dark:text-dark-300 light:text-gray-700 mb-2">
                 Biografía
               </label>
               <textarea
@@ -491,7 +491,7 @@ export const Settings: React.FC = () => {
                 onChange={handleChange}
                 rows={4}
                 placeholder="Cuéntanos sobre ti..."
-                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                className="w-full px-4 py-2 bg-dark-800 border border-dark-700 dark:bg-dark-800 dark:border-dark-700 dark:text-dark-100 light:bg-white light:border-gray-300 light:text-gray-900 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
               />
             </div>
 
@@ -506,7 +506,7 @@ export const Settings: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate(getDashboardRoute())}
-                className="px-6 py-3 bg-dark-800 hover:bg-dark-700 text-dark-200 font-medium rounded-lg transition-colors"
+                className="px-6 py-3 bg-dark-800 hover:bg-dark-700 text-dark-200 dark:bg-dark-800 dark:hover:bg-dark-700 dark:text-dark-200 light:bg-gray-200 light:hover:bg-gray-300 light:text-gray-900 font-medium rounded-lg transition-colors"
               >
                 Cancelar
               </button>

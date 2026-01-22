@@ -59,8 +59,8 @@ export const TrainerDashboard: React.FC = () => {
   if (!profile) return null;
 
   return (
-    <div className="min-h-screen bg-dark-950">
-      <header className="bg-dark-900 border-b border-dark-800">
+    <div className="min-h-screen bg-dark-950 dark:bg-dark-950 light:bg-gray-50">
+      <header className="bg-dark-900 border-b border-dark-800 dark:bg-dark-900 dark:border-dark-800 light:bg-white light:border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -70,14 +70,14 @@ export const TrainerDashboard: React.FC = () => {
                 size="md"
               />
               <div>
-                <h1 className="text-2xl font-bold text-dark-50">Panel de Entrenador</h1>
-                <p className="text-sm text-dark-400 mt-1">Hola, {profile.name}</p>
+                <h1 className="text-2xl font-bold text-dark-50 dark:text-dark-50 light:text-gray-900">Panel de Entrenador</h1>
+                <p className="text-sm text-dark-400 dark:text-dark-400 light:text-gray-600 mt-1">Hola, {profile.name}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate('/settings')}
-                className="p-2 bg-dark-800 hover:bg-dark-700 text-dark-200 rounded-lg transition-colors"
+                className="p-2 bg-dark-800 hover:bg-dark-700 text-dark-200 dark:bg-dark-800 dark:hover:bg-dark-700 dark:text-dark-200 light:bg-gray-200 light:hover:bg-gray-300 light:text-gray-900 rounded-lg transition-colors"
                 title="Ajustes"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -87,7 +87,7 @@ export const TrainerDashboard: React.FC = () => {
               </button>
               <button
                 onClick={handleSignOut}
-                className="flex items-center gap-2 px-4 py-2 bg-dark-800 hover:bg-dark-700 text-dark-200 rounded-lg transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-dark-800 hover:bg-dark-700 text-dark-200 dark:bg-dark-800 dark:hover:bg-dark-700 dark:text-dark-200 light:bg-gray-200 light:hover:bg-gray-300 light:text-gray-900 rounded-lg transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -101,23 +101,23 @@ export const TrainerDashboard: React.FC = () => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h2 className="text-xl font-semibold text-dark-50 mb-2">Mis Clases de Hoy</h2>
-          <p className="text-dark-400 text-sm">{new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+          <h2 className="text-xl font-semibold text-dark-50 dark:text-dark-50 light:text-gray-900 mb-2">Mis Clases de Hoy</h2>
+          <p className="text-dark-400 dark:text-dark-400 light:text-gray-600 text-sm">{new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
         </div>
 
         {loading ? (
           <div className="text-center py-12">
             <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-dark-400">Cargando clases...</p>
+            <p className="text-dark-400 dark:text-dark-400 light:text-gray-600">Cargando clases...</p>
           </div>
         ) : classes.length === 0 ? (
-          <div className="bg-dark-900 border border-dark-800 rounded-lg p-12 text-center">
-            <div className="w-16 h-16 bg-dark-800 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-dark-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="bg-dark-900 border border-dark-800 dark:bg-dark-900 dark:border-dark-800 light:bg-white light:border-gray-200 rounded-lg p-12 text-center">
+            <div className="w-16 h-16 bg-dark-800 dark:bg-dark-800 light:bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-dark-400 dark:text-dark-400 light:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-dark-300 mb-2">No tienes clases hoy</h3>
+            <h3 className="text-lg font-medium text-dark-300 dark:text-dark-300 light:text-gray-700 mb-2">No tienes clases hoy</h3>
             <p className="text-dark-500 text-sm">Disfruta tu día libre 🎉</p>
           </div>
         ) : (

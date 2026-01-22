@@ -81,8 +81,8 @@ export const AdminDashboard: React.FC = () => {
   if (!profile) return null;
 
   return (
-    <div className="min-h-screen bg-dark-950">
-      <header className="bg-dark-900 border-b border-dark-800">
+    <div className="min-h-screen bg-dark-950 dark:bg-dark-950 light:bg-gray-50">
+      <header className="bg-dark-900 border-b border-dark-800 dark:bg-dark-900 dark:border-dark-800 light:bg-white light:border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -92,14 +92,14 @@ export const AdminDashboard: React.FC = () => {
                 size="md"
               />
               <div>
-                <h1 className="text-2xl font-bold text-dark-50">Panel de Administración</h1>
-                <p className="text-sm text-dark-400 mt-1">Hola, {profile.name} (Admin)</p>
+                <h1 className="text-2xl font-bold text-dark-50 dark:text-dark-50 light:text-gray-900">Panel de Administración</h1>
+                <p className="text-sm text-dark-400 dark:text-dark-400 light:text-gray-600 mt-1">Hola, {profile.name} (Admin)</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate('/settings')}
-                className="p-2 bg-dark-800 hover:bg-dark-700 text-dark-200 rounded-lg transition-colors"
+                className="p-2 bg-dark-800 hover:bg-dark-700 text-dark-200 dark:bg-dark-800 dark:hover:bg-dark-700 dark:text-dark-200 light:bg-gray-200 light:hover:bg-gray-300 light:text-gray-900 rounded-lg transition-colors"
                 title="Ajustes"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -109,7 +109,7 @@ export const AdminDashboard: React.FC = () => {
               </button>
               <button
                 onClick={handleSignOut}
-                className="flex items-center gap-2 px-4 py-2 bg-dark-800 hover:bg-dark-700 text-dark-200 rounded-lg transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-dark-800 hover:bg-dark-700 text-dark-200 dark:bg-dark-800 dark:hover:bg-dark-700 dark:text-dark-200 light:bg-gray-200 light:hover:bg-gray-300 light:text-gray-900 rounded-lg transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -124,50 +124,50 @@ export const AdminDashboard: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-dark-900 border border-dark-800 rounded-lg p-6">
-            <h3 className="text-sm text-dark-400 mb-2">Total Usuarios</h3>
-            <p className="text-3xl font-bold text-dark-50">{users.length}</p>
+          <div className="bg-dark-900 border border-dark-800 dark:bg-dark-900 dark:border-dark-800 light:bg-white light:border-gray-200 rounded-lg p-6">
+            <h3 className="text-sm text-dark-400 dark:text-dark-400 light:text-gray-600 mb-2">Total Usuarios</h3>
+            <p className="text-3xl font-bold text-dark-50 dark:text-dark-50 light:text-gray-900">{users.length}</p>
           </div>
           <div 
-            className={`bg-dark-900 border rounded-lg p-6 cursor-pointer transition-all ${
+            className={`bg-dark-900 border rounded-lg p-6 cursor-pointer transition-all dark:bg-dark-900 light:bg-white ${
               selectedRole === 'admin' 
                 ? 'border-red-500 ring-2 ring-red-500/20' 
-                : 'border-dark-800 hover:border-red-500/50'
+                : 'border-dark-800 hover:border-red-500/50 dark:border-dark-800 light:border-gray-200 light:hover:border-red-500/50'
             }`}
             onClick={() => setSelectedRole(selectedRole === 'admin' ? 'all' : 'admin')}
           >
-            <h3 className="text-sm text-dark-400 mb-2">Administradores</h3>
+            <h3 className="text-sm text-dark-400 dark:text-dark-400 light:text-gray-600 mb-2">Administradores</h3>
             <p className="text-3xl font-bold text-red-400">{users.filter(u => u.role === 'admin').length}</p>
           </div>
           <div 
-            className={`bg-dark-900 border rounded-lg p-6 cursor-pointer transition-all ${
+            className={`bg-dark-900 border rounded-lg p-6 cursor-pointer transition-all dark:bg-dark-900 light:bg-white ${
               selectedRole === 'trainer' 
                 ? 'border-blue-500 ring-2 ring-blue-500/20' 
-                : 'border-dark-800 hover:border-blue-500/50'
+                : 'border-dark-800 hover:border-blue-500/50 dark:border-dark-800 light:border-gray-200 light:hover:border-blue-500/50'
             }`}
             onClick={() => setSelectedRole(selectedRole === 'trainer' ? 'all' : 'trainer')}
           >
-            <h3 className="text-sm text-dark-400 mb-2">Entrenadores</h3>
+            <h3 className="text-sm text-dark-400 dark:text-dark-400 light:text-gray-600 mb-2">Entrenadores</h3>
             <p className="text-3xl font-bold text-blue-400">{users.filter(u => u.role === 'trainer').length}</p>
           </div>
           <div 
-            className={`bg-dark-900 border rounded-lg p-6 cursor-pointer transition-all ${
+            className={`bg-dark-900 border rounded-lg p-6 cursor-pointer transition-all dark:bg-dark-900 light:bg-white ${
               selectedRole === 'member' 
                 ? 'border-green-500 ring-2 ring-green-500/20' 
-                : 'border-dark-800 hover:border-green-500/50'
+                : 'border-dark-800 hover:border-green-500/50 dark:border-dark-800 light:border-gray-200 light:hover:border-green-500/50'
             }`}
             onClick={() => setSelectedRole(selectedRole === 'member' ? 'all' : 'member')}
           >
-            <h3 className="text-sm text-dark-400 mb-2">Miembros</h3>
+            <h3 className="text-sm text-dark-400 dark:text-dark-400 light:text-gray-600 mb-2">Miembros</h3>
             <p className="text-3xl font-bold text-green-400">{users.filter(u => u.role === 'member').length}</p>
           </div>
         </div>
 
         {/* Users Table */}
-        <div className="bg-dark-900 border border-dark-800 rounded-lg overflow-hidden">
-          <div className="px-6 py-4 border-b border-dark-800 flex items-center justify-between">
+        <div className="bg-dark-900 border border-dark-800 dark:bg-dark-900 dark:border-dark-800 light:bg-white light:border-gray-200 rounded-lg overflow-hidden">
+          <div className="px-6 py-4 border-b border-dark-800 dark:border-dark-800 light:border-gray-200 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <h2 className="text-lg font-semibold text-dark-50">
+              <h2 className="text-lg font-semibold text-dark-50 dark:text-dark-50 light:text-gray-900">
                 {selectedRole === 'all' && 'Todos los Usuarios'}
                 {selectedRole === 'admin' && 'Administradores'}
                 {selectedRole === 'trainer' && 'Entrenadores'}
