@@ -10,6 +10,7 @@ import { MemberDashboard } from '@/pages/MemberDashboard';
 import { AdminDashboard } from '@/pages/AdminDashboard';
 import { TrainerDashboard } from '@/pages/TrainerDashboard';
 import { Settings } from '@/pages/Settings';
+import { WorkoutPlanPage } from '@/features/member/workoutPlan/WorkoutPlanPage';
 
 export const App: React.FC = () => {
   return (
@@ -34,6 +35,14 @@ export const App: React.FC = () => {
               element={
                 <ProtectedRoute allowedRoles={['member']}>
                   <MemberDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/app/workout-plan"
+              element={
+                <ProtectedRoute allowedRoles={['member']}>
+                  <WorkoutPlanPage />
                 </ProtectedRoute>
               }
             />

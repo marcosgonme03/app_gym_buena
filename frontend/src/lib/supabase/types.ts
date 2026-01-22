@@ -29,6 +29,9 @@ export interface UserProfile {
   goal_target_date?: string | null;
   onboarding_completed?: boolean;
   
+  // FASE 2: Meta semanal de entrenamientos
+  weekly_workout_goal?: number;  // Default 3, constraint 1-14
+  
   created_at: string;
   updated_at: string;
 }
@@ -41,6 +44,31 @@ export interface BodyMetric {
   height_cm?: number | null;  // Altura en centímetros (opcional, puede duplicarse desde users)
   recorded_at: string;  // Timestamp de cuándo se registró
   created_at: string;
+}
+
+// FASE 2: Tabla workout_logs para registrar entrenamientos
+export interface WorkoutLog {
+  id: string;
+  user_id: string;
+  performed_at: string;  // Timestamp de cuándo se realizó el entreno
+  workout_type?: string | null;  // Tipo de entreno (cardio, fuerza, etc.)
+  notes?: string | null;  // Notas opcionales
+  created_at?: string;
+}
+
+// FASE 2: Estadísticas semanales calculadas
+export interface WeeklyStats {
+  weeklyCount: number;  // Entrenamientos completados esta semana
+  weeklyGoal: number;   // Meta de entrenamientos semanales
+  weeklyPercent: number; // Porcentaje de progreso (0-100)
+  streakDays: number;    // Días consecutivos con al menos 1 entreno
+  nextBookedClass?: {    // Próxima clase reservada (si existe)
+    id: string;
+    name: string;
+    date: string;
+    time: string;
+    instructor?: string;
+  } | null;
 }
 
 export interface AuthUser {
