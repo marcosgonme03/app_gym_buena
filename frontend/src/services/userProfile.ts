@@ -5,7 +5,7 @@
  */
 
 import { supabase } from '@/lib/supabase/client';
-import { UserProfile } from '@/lib/supabase/types';
+import { UserProfile, GoalType } from '@/lib/supabase/types';
 
 export interface UpdateProfilePayload {
   name?: string;
@@ -13,6 +13,14 @@ export interface UpdateProfilePayload {
   phone?: string | null;
   bio?: string | null;
   date_of_birth?: string | null;
+  height_cm?: number | null;  // Altura en users
+  level?: 'beginner' | 'intermediate' | 'advanced' | null;
+  
+  // Nuevos campos de objetivo
+  goal_type?: GoalType | null;
+  goal_notes?: string | null;
+  goal_target_date?: string | null;
+  onboarding_completed?: boolean;
 }
 
 export interface ProfileServiceError {
@@ -78,6 +86,33 @@ function validateProfilePayload(payload: UpdateProfilePayload): ProfileServiceEr
     if (lastNameTrimmed.length > 50) {
       return { message: 'El apellido no puede superar 50 caracteres', field: 'last_name' };
     }
+  }
+
+  // Validar altura
+  if (payload.height_cm !== undefined && payload.height_cm !== null) {
+    if (payload.height_cm < 80 || payload.height_cm > 250) {
+      return { message: 'La altura debe estar entre 80 y 250 cm', field: 'height_cm' };
+    }
+  }
+
+  // Validar goal_target_date
+  if (payload.goal_target_date && payload.goal_target_date.trim()) {
+    const targetDate = new Date(payload.goal_target_date);
+    if (isNaN(targetDate.getTime())) {
+      return { message: 'Fecha objetivo inválida', field: 'goal_target_date' };
+    }
+    
+    // No permitir fechas pasadas
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (targetDate < today) {
+      return { message: 'La fecha objetivo no puede ser en el pasado', field: 'goal_target_date' };
+    }
+  }
+
+  // Validar goal_notes
+  if (payload.goal_notes && payload.goal_notes.length > 1000) {
+    return { message: 'Las notas del objetivo no pueden superar 1000 caracteres', field: 'goal_notes' };
   }
 
   return null;
@@ -168,6 +203,35 @@ export async function updateMyProfile(payload: UpdateProfilePayload): Promise<Us
       updateData.date_of_birth = payload.date_of_birth && payload.date_of_birth.trim() 
         ? payload.date_of_birth.trim() 
         : null;
+    }
+
+    if (payload.height_cm !== undefined) {
+      updateData.height_cm = payload.height_cm;
+    }
+
+    if (payload.level !== undefined) {
+      updateData.level = payload.level;
+    }
+
+    // Nuevos campos de objetivo
+    if (payload.goal_type !== undefined) {
+      updateData.goal_type = payload.goal_type;
+    }
+
+    if (payload.goal_notes !== undefined) {
+      updateData.goal_notes = payload.goal_notes && payload.goal_notes.trim() 
+        ? payload.goal_notes.trim() 
+        : null;
+    }
+
+    if (payload.goal_target_date !== undefined) {
+      updateData.goal_target_date = payload.goal_target_date && payload.goal_target_date.trim() 
+        ? payload.goal_target_date.trim() 
+        : null;
+    }
+
+    if (payload.onboarding_completed !== undefined) {
+      updateData.onboarding_completed = payload.onboarding_completed;
     }
 
     console.log('[ProfileService] Update data prepared:', updateData);

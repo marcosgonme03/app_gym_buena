@@ -1,5 +1,14 @@
 export type Role = 'admin' | 'trainer' | 'member';
 
+// Tipos de objetivo de entrenamiento
+export type GoalType = 
+  | 'lose_fat' 
+  | 'gain_muscle' 
+  | 'strength' 
+  | 'endurance' 
+  | 'mobility' 
+  | 'health';
+
 export interface UserProfile {
   id: string;
   user_id: string;
@@ -11,13 +20,27 @@ export interface UserProfile {
   phone?: string | null;
   bio?: string | null;
   date_of_birth?: string | null;
-  birth_date?: string | null;
-  height_cm?: number | null;
-  weight_kg?: number | null;
-  goal?: string | null;
+  height_cm?: number | null;  // Altura en cm (ahora en users)
   level?: 'beginner' | 'intermediate' | 'advanced' | null;
+  
+  // Nuevos campos de objetivo (solo para members)
+  goal_type?: GoalType | null;
+  goal_notes?: string | null;
+  goal_target_date?: string | null;
+  onboarding_completed?: boolean;
+  
   created_at: string;
   updated_at: string;
+}
+
+// Nueva tabla body_metrics para tracking histórico de peso y altura
+export interface BodyMetric {
+  id: string;
+  user_id: string;
+  weight_kg: number;  // Peso en kilogramos
+  height_cm?: number | null;  // Altura en centímetros (opcional, puede duplicarse desde users)
+  recorded_at: string;  // Timestamp de cuándo se registró
+  created_at: string;
 }
 
 export interface AuthUser {

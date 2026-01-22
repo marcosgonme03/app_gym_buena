@@ -5,6 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/client';
 import { Avatar } from '@/components/common/Avatar';
 import { updateMyProfile, updateMyAvatar } from '@/services/userProfile';
+import { getMyLatestBodyMetric, insertBodyMetric } from '@/services/bodyMetrics';
+import { GoalType } from '@/lib/supabase/types';
 
 export const Settings: React.FC = () => {
   const { profile, signOut, refreshProfile } = useAuth();
@@ -19,6 +21,8 @@ export const Settings: React.FC = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [currentWeight, setCurrentWeight] = useState<number | null>(null);
+  const [loadingWeight, setLoadingWeight] = useState(true);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -26,25 +30,59 @@ export const Settings: React.FC = () => {
     email: '',
     phone: '',
     bio: '',
-    date_of_birth: ''
+    date_of_birth: '',
+    height_cm: '',
+    weight_kg: '',
+    level: 'beginner' as 'beginner' | 'intermediate' | 'advanced',
+    goal_type: '' as GoalType | '',
+    goal_notes: '',
+    goal_target_date: ''
   });
 
-  // 🔥 CRÍTICO: Sincronizar formData con profile cuando profile cambie
+  // Cargar peso actual desde body_metrics
+  useEffect(() => {
+    const loadCurrentWeight = async () => {
+      try {
+        const latestMetric = await getMyLatestBodyMetric();
+        if (latestMetric) {
+          setCurrentWeight(latestMetric.weight_kg);
+          setFormData(prev => ({
+            ...prev,
+            weight_kg: latestMetric.weight_kg.toString()
+          }));
+        }
+      } catch (error) {
+        console.error('[Settings] Error al cargar peso:', error);
+      } finally {
+        setLoadingWeight(false);
+      }
+    };
+
+    loadCurrentWeight();
+  }, []);
+
+  // Sincronizar formData con profile cuando profile cambie
   useEffect(() => {
     if (profile) {
       console.log('[Settings] Syncing formData with profile:', profile);
-      setFormData({
+      setFormData(prev => ({
+        ...prev,
         name: profile.name || '',
         last_name: profile.last_name || '',
         email: profile.email || '',
-        phone: (profile as any)?.phone || '',
-        bio: (profile as any)?.bio || '',
-        date_of_birth: (profile as any)?.date_of_birth || ''
-      });
+        phone: profile.phone || '',
+        bio: profile.bio || '',
+        date_of_birth: profile.date_of_birth || '',
+        height_cm: profile.height_cm?.toString() || '',
+        level: profile.level || 'beginner',
+        goal_type: profile.goal_type || '',
+        goal_notes: profile.goal_notes || '',
+        goal_target_date: profile.goal_target_date || ''
+      }));
     }
   }, [profile]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
@@ -60,19 +98,46 @@ export const Settings: React.FC = () => {
 
     try {
       console.log('[Settings] Guardando cambios:', formData);
+      
+      const heightValue = formData.height_cm && formData.height_cm !== '' 
+        ? parseInt(formData.height_cm.toString()) 
+        : null;
+      
+      const weightValue = formData.weight_kg && formData.weight_kg !== '' 
+        ? parseFloat(formData.weight_kg.toString()) 
+        : null;
+      
+      console.log('[Settings] Altura:', formData.height_cm, '→', heightValue);
+      console.log('[Settings] Peso:', formData.weight_kg, '→', weightValue);
 
-      // Usar servicio de perfil con validaciones
+      // 1. Actualizar perfil en users
       const updatedProfile = await updateMyProfile({
         name: formData.name,
         last_name: formData.last_name,
         phone: formData.phone || null,
         bio: formData.bio || null,
-        date_of_birth: formData.date_of_birth || null
+        date_of_birth: formData.date_of_birth || null,
+        height_cm: heightValue,
+        level: formData.level,
+        goal_type: formData.goal_type || null,
+        goal_notes: formData.goal_notes || null,
+        goal_target_date: formData.goal_target_date || null,
+        onboarding_completed: true  // Marcar onboarding como completado
       });
 
       console.log('[Settings] ✅ Perfil actualizado en BBDD:', updatedProfile);
 
-      // Refrescar profile desde BBDD para sincronizar
+      // 2. Si el peso cambió, insertar nueva métrica en body_metrics
+      if (weightValue && weightValue !== currentWeight) {
+        await insertBodyMetric({
+          weight_kg: weightValue,
+          height_cm: heightValue  // Opcionalmente guardar altura también
+        });
+        setCurrentWeight(weightValue);
+        console.log('[Settings] ✅ Nueva métrica corporal guardada');
+      }
+
+      // 3. Refrescar profile desde BBDD para sincronizar
       await refreshProfile();
       
       setMessage({ type: 'success', text: '¡Perfil actualizado correctamente!' });
@@ -480,6 +545,136 @@ export const Settings: React.FC = () => {
               />
             </div>
 
+            {/* Medidas físicas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="weight_kg" className="block text-sm font-medium text-dark-300 dark:text-dark-300 light:text-gray-700 mb-2">
+                  Peso (kg) {loadingWeight && <span className="text-xs text-dark-500">Cargando...</span>}
+                </label>
+                <input
+                  type="number"
+                  id="weight_kg"
+                  name="weight_kg"
+                  value={formData.weight_kg}
+                  onChange={handleChange}
+                  placeholder="75.5"
+                  step="0.1"
+                  min="20"
+                  max="300"
+                  className="w-full px-4 py-2 bg-dark-800 border border-dark-700 dark:bg-dark-800 dark:border-dark-700 dark:text-dark-100 light:bg-white light:border-gray-300 light:text-gray-900 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+                <p className="text-xs text-dark-500 dark:text-dark-500 light:text-gray-500 mt-1">
+                  Se guardará el historial de cambios
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="height_cm" className="block text-sm font-medium text-dark-300 dark:text-dark-300 light:text-gray-700 mb-2">
+                  Altura (cm)
+                </label>
+                <input
+                  type="number"
+                  id="height_cm"
+                  name="height_cm"
+                  value={formData.height_cm}
+                  onChange={handleChange}
+                  placeholder="175"
+                  min="80"
+                  max="250"
+                  className="w-full px-4 py-2 bg-dark-800 border border-dark-700 dark:bg-dark-800 dark:border-dark-700 dark:text-dark-100 light:bg-white light:border-gray-300 light:text-gray-900 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            </div>
+
+            {/* Nivel de experiencia */}
+            {profile.role === 'member' && (
+              <div>
+                <label htmlFor="level" className="block text-sm font-medium text-dark-300 dark:text-dark-300 light:text-gray-700 mb-2">
+                  Nivel de Experiencia
+                </label>
+                <select
+                  id="level"
+                  name="level"
+                  value={formData.level}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 bg-dark-800 border border-dark-700 dark:bg-dark-800 dark:border-dark-700 dark:text-dark-100 light:bg-white light:border-gray-300 light:text-gray-900 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="beginner">Principiante</option>
+                  <option value="intermediate">Intermedio</option>
+                  <option value="advanced">Avanzado</option>
+                </select>
+              </div>
+            )}
+
+            {/* Objetivo de entrenamiento */}
+            {profile.role === 'member' && (
+              <>
+                <div>
+                  <label htmlFor="goal_type" className="block text-sm font-medium text-dark-300 dark:text-dark-300 light:text-gray-700 mb-2">
+                    Objetivo Principal {!profile.onboarding_completed && <span className="text-red-400">*</span>}
+                  </label>
+                  <select
+                    id="goal_type"
+                    name="goal_type"
+                    value={formData.goal_type}
+                    onChange={handleChange}
+                    required={!profile.onboarding_completed}
+                    className="w-full px-4 py-2 bg-dark-800 border border-dark-700 dark:bg-dark-800 dark:border-dark-700 dark:text-dark-100 light:bg-white light:border-gray-300 light:text-gray-900 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">Selecciona tu objetivo</option>
+                    <option value="lose_fat">Perder grasa</option>
+                    <option value="gain_muscle">Ganar músculo</option>
+                    <option value="strength">Aumentar fuerza</option>
+                    <option value="endurance">Mejorar resistencia</option>
+                    <option value="mobility">Mejorar movilidad</option>
+                    <option value="health">Salud general</option>
+                  </select>
+                  {!profile.onboarding_completed && (
+                    <p className="text-xs text-dark-500 dark:text-dark-500 light:text-gray-500 mt-1">
+                      Debes seleccionar un objetivo para completar tu perfil
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="goal_target_date" className="block text-sm font-medium text-dark-300 dark:text-dark-300 light:text-gray-700 mb-2">
+                    Fecha Objetivo (opcional)
+                  </label>
+                  <input
+                    type="date"
+                    id="goal_target_date"
+                    name="goal_target_date"
+                    value={formData.goal_target_date}
+                    onChange={handleChange}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-2 bg-dark-800 border border-dark-700 dark:bg-dark-800 dark:border-dark-700 dark:text-dark-100 light:bg-white light:border-gray-300 light:text-gray-900 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                  <p className="text-xs text-dark-500 dark:text-dark-500 light:text-gray-500 mt-1">
+                    ¿Cuándo quieres alcanzar tu objetivo?
+                  </p>
+                </div>
+
+                <div>
+                  <label htmlFor="goal_notes" className="block text-sm font-medium text-dark-300 dark:text-dark-300 light:text-gray-700 mb-2">
+                    Notas sobre tu Objetivo (opcional)
+                  </label>
+                  <textarea
+                    id="goal_notes"
+                    name="goal_notes"
+                    value={formData.goal_notes}
+                    onChange={handleChange}
+                    rows={3}
+                    placeholder="Ej: Quiero perder 5 kg antes de mi boda, me cuesta mantener la constancia..."
+                    maxLength={1000}
+                    className="w-full px-4 py-2 bg-dark-800 border border-dark-700 dark:bg-dark-800 dark:border-dark-700 dark:text-dark-100 light:bg-white light:border-gray-300 light:text-gray-900 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                  />
+                  <p className="text-xs text-dark-500 dark:text-dark-500 light:text-gray-500 mt-1">
+                    {formData.goal_notes.length}/1000 caracteres
+                  </p>
+                </div>
+              </>
+            )}
+
             <div>
               <label htmlFor="bio" className="block text-sm font-medium text-dark-300 dark:text-dark-300 light:text-gray-700 mb-2">
                 Biografía
@@ -491,8 +686,12 @@ export const Settings: React.FC = () => {
                 onChange={handleChange}
                 rows={4}
                 placeholder="Cuéntanos sobre ti..."
+                maxLength={500}
                 className="w-full px-4 py-2 bg-dark-800 border border-dark-700 dark:bg-dark-800 dark:border-dark-700 dark:text-dark-100 light:bg-white light:border-gray-300 light:text-gray-900 rounded-lg text-dark-100 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
               />
+              <p className="text-xs text-dark-500 dark:text-dark-500 light:text-gray-500 mt-1">
+                {formData.bio.length}/500 caracteres
+              </p>
             </div>
 
             <div className="flex gap-3 pt-4">
