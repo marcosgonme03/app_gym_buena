@@ -73,28 +73,54 @@ export const BottomNav: React.FC = () => {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-dark-900 border-t border-dark-800 z-50 safe-area-bottom">
-      <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
-        {navItems.map((item) => {
-          const active = isActive(item.path);
-          return (
-            <button
-              key={item.id}
-              onClick={() => navigate(item.path)}
-              className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-                active 
-                  ? 'text-primary-400' 
-                  : 'text-dark-400 hover:text-dark-200'
-              }`}
-            >
-              <div className={`transition-transform ${active ? 'scale-110' : 'scale-100'}`}>
-                {item.icon}
-              </div>
-              <span className="text-xs mt-1 font-medium">{item.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </nav>
+    <>
+      <nav className="fixed bottom-0 left-0 right-0 bg-dark-900 border-t border-dark-800 z-50 safe-area-bottom lg:hidden">
+        <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
+          {navItems.map((item) => {
+            const active = isActive(item.path);
+            return (
+              <button
+                key={item.id}
+                onClick={() => navigate(item.path)}
+                className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+                  active
+                    ? 'text-primary-400'
+                    : 'text-dark-400 hover:text-dark-200'
+                }`}
+              >
+                <div className={`transition-transform ${active ? 'scale-110' : 'scale-100'}`}>
+                  {item.icon}
+                </div>
+                <span className="text-xs mt-1 font-medium">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      <nav className="hidden lg:block bg-dark-900 border-b border-dark-800 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-8">
+          <div className="flex items-center h-14 gap-2">
+            {navItems.map((item) => {
+              const active = isActive(item.path);
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => navigate(item.path)}
+                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                    active
+                      ? 'text-primary-400 bg-dark-800'
+                      : 'text-dark-400 hover:text-dark-200 hover:bg-dark-800/70'
+                  }`}
+                >
+                  <span className="w-5 h-5">{item.icon}</span>
+                  <span className="text-sm font-medium">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </nav>
+    </>
   );
 };

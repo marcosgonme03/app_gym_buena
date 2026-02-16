@@ -5,37 +5,60 @@ import { getWeeklyPlanFull } from '../workoutPlan/api';
 import { getWeekStart, addWeeks, formatWeekRange, isCurrentWeek } from '../workoutPlan/weekHelpers';
 import type { WeeklyPlanFullDTO } from '../workoutPlan/types';
 
-export const WeeklyPlanPreviewCard: React.FC = () => {
+interface WeeklyPlanPreviewCardProps {
+  weekStart?: string; // YYYY-MM-DD
+  planData?: WeeklyPlanFullDTO | null; // Datos externos del dashboard
+  loading?: boolean; // Estado de carga externo
+}
+
+export const WeeklyPlanPreviewCard: React.FC<WeeklyPlanPreviewCardProps> = ({
+  weekStart: externalWeekStart,
+  planData: externalPlanData,
+  loading: externalLoading
+}) => {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const [weekStart, setWeekStart] = useState<string>(getWeekStart());
-  const [planData, setPlanData] = useState<WeeklyPlanFullDTO | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [internalWeekStart, setInternalWeekStart] = useState<string>(() => getWeekStart());
+  const [internalPlanData, setInternalPlanData] = useState<WeeklyPlanFullDTO | null>(null);
+  const [internalLoading, setInternalLoading] = useState(true);
 
-  useEffect(() => {
-    loadPlan();
-  }, [weekStart, profile]);
+  // Usar datos externos si están disponibles, si no usar internos
+  const weekStart = externalWeekStart !== undefined ? externalWeekStart : internalWeekStart;
+  const planData = externalPlanData !== undefined ? externalPlanData : internalPlanData;
+  const loading = externalLoading !== undefined ? externalLoading : internalLoading;
 
   const loadPlan = async () => {
-    if (!profile || profile.role !== 'member') return;
+    if (externalPlanData !== undefined) return; // Usar datos del padre
+    if (!profile || profile.role !== 'member') {
+      setInternalLoading(false);
+      return;
+    }
 
     try {
-      setLoading(true);
+      setInternalLoading(true);
       const data = await getWeeklyPlanFull(weekStart);
-      setPlanData(data);
+      setInternalPlanData(data);
     } catch (error) {
       console.error('[WeeklyPlanPreviewCard] Error:', error);
     } finally {
-      setLoading(false);
+      setInternalLoading(false);
     }
   };
 
+  useEffect(() => {
+    if (externalPlanData === undefined) {
+      loadPlan();
+    }
+  }, [internalWeekStart, externalPlanData]);
+
   const handlePrevWeek = () => {
-    setWeekStart(prev => addWeeks(prev, -1));
+    if (externalWeekStart !== undefined) return; // No permitir navegación si viene del padre
+    setInternalWeekStart(prev => addWeeks(prev, -1));
   };
 
   const handleNextWeek = () => {
-    setWeekStart(prev => addWeeks(prev, 1));
+    if (externalWeekStart !== undefined) return; // No permitir navegación si viene del padre
+    setInternalWeekStart(prev => addWeeks(prev, 1));
   };
 
   const handleViewPlan = () => {
@@ -78,7 +101,8 @@ export const WeeklyPlanPreviewCard: React.FC = () => {
       <div className="flex items-center justify-between mb-3 sm:mb-4">
         <button
           onClick={handlePrevWeek}
-          className="p-1.5 hover:bg-dark-800 rounded-lg transition-colors"
+          disabled={externalWeekStart !== undefined}
+          className="p-1.5 hover:bg-dark-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Semana anterior"
         >
           <svg className="w-4 h-4 text-dark-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -97,7 +121,8 @@ export const WeeklyPlanPreviewCard: React.FC = () => {
 
         <button
           onClick={handleNextWeek}
-          className="p-1.5 hover:bg-dark-800 rounded-lg transition-colors"
+          disabled={externalWeekStart !== undefined}
+          className="p-1.5 hover:bg-dark-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Semana siguiente"
         >
           <svg className="w-4 h-4 text-dark-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

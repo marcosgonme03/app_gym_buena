@@ -1,18 +1,91 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Avatar } from '@/components/common/Avatar';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { MemberStatsCard } from '@/components/member/MemberStatsCard';
 import { WeeklyOverviewCard } from '@/components/member/WeeklyOverviewCard';
+import { TodayTrainingCard, TodayTrainingData } from '@/components/member/TodayTrainingCard';
+import { WeeklyProgressCard } from '@/components/member/WeeklyProgressCard';
 import { WeeklyPlanPreviewCard } from '@/features/member/dashboard/WeeklyPlanPreviewCard';
 import { getWeekStart, getWeekEnd } from '@/features/member/workoutPlan/weekHelpers';
+import { useDashboardData } from '@/features/member/dashboard/useDashboardData';
+import { useTodayWorkout } from '@/features/member/dashboard/hooks/useTodayWorkout';
+import { useWeeklyProgress } from '@/features/member/dashboard/hooks/useWeeklyProgress';
 
 
 export const MemberDashboard: React.FC = () => {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const [selectedWeekStart] = useState<string>(getWeekStart());
+  const [selectedWeekStart] = useState<string>(() => getWeekStart());
+  const selectedWeekEnd = useMemo(() => getWeekEnd(selectedWeekStart), [selectedWeekStart]);
+  
+  // Hook centralizado que carga ambos datos en paralelo
+  const { weeklyStats, planData, loading, reload } = useDashboardData(selectedWeekStart, selectedWeekEnd);
+  const {
+    data: todayWorkout,
+    loading: todayLoading,
+    error: todayError,
+    startWorkout,
+    refresh: refreshToday,
+    humanLastUpdated,
+  } = useTodayWorkout(planData);
+  const {
+    data: weeklyProgress,
+    loading: weeklyProgressLoading,
+    error: weeklyProgressError,
+    refresh: refreshWeeklyProgress,
+  } = useWeeklyProgress(selectedWeekStart, weeklyStats);
+
+  const todayTrainingData = useMemo<TodayTrainingData | null>(() => {
+    if (!todayWorkout) return null;
+
+    const exercises = todayWorkout.plannedWorkout?.exercises || [];
+
+    return {
+      status: todayWorkout.status,
+      type: todayWorkout.plannedWorkout?.name || 'Plan general',
+      estimatedDurationMin: todayWorkout.estimatedDurationMin,
+      exerciseCount: todayWorkout.exerciseCount,
+      exercises: exercises.map((exercise) => ({
+        id: exercise.id,
+        name: exercise.exercise_name,
+      })),
+      hasPlannedWorkout: Boolean(todayWorkout.plannedWorkout),
+      lastUpdatedLabel: humanLastUpdated,
+    };
+  }, [todayWorkout, humanLastUpdated]);
+
+  const handleTodayPrimaryAction = async () => {
+    if (!todayWorkout || !todayTrainingData) return;
+
+    if (!todayTrainingData.hasPlannedWorkout) {
+      navigate('/app/workout-plan');
+      return;
+    }
+
+    if (todayWorkout.status === 'not_started') {
+      await startWorkout();
+      await Promise.all([refreshToday(), refreshWeeklyProgress()]);
+      navigate('/app/workout/today');
+      return;
+    }
+
+    if (todayWorkout.status === 'in_progress') {
+      navigate('/app/workout/today');
+      return;
+    }
+
+    if (todayWorkout.status === 'completed' && todayWorkout.session?.id) {
+      navigate(`/app/workout/summary/${todayWorkout.session.id}`);
+    }
+  };
+
+  const handleTodaySecondaryAction = async () => {
+    await startWorkout();
+    await Promise.all([refreshToday(), refreshWeeklyProgress()]);
+    navigate('/app/workout/today?manual=1');
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -25,7 +98,7 @@ export const MemberDashboard: React.FC = () => {
     <div className="min-h-screen bg-dark-950 dark:bg-dark-950 light:bg-gray-50 pb-20 lg:pb-0">
       {/* Header Desktop/Mobile Responsive */}
       <header className="bg-gradient-to-br from-dark-900 to-dark-950 dark:from-dark-900 dark:to-dark-950 light:from-white light:to-gray-50 border-b border-dark-800/50 dark:border-dark-800/50 light:border-gray-200 sticky top-0 z-40">
-        <div className="px-3 sm:px-4 lg:px-8 py-3 sm:py-4 max-w-7xl mx-auto">
+        <div className="w-full px-3 sm:px-4 lg:px-8 py-3 sm:py-4 lg:max-w-7xl lg:mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 sm:gap-3">
               <Avatar
@@ -67,41 +140,77 @@ export const MemberDashboard: React.FC = () => {
         </div>
       </header>
 
-      <main className="px-3 sm:px-4 lg:px-8 py-4 sm:py-6 max-w-lg lg:max-w-7xl mx-auto">
+      <BottomNav />
+
+      <main className="w-full max-w-7xl mx-auto px-0 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6">
         {/* Desktop: Layout de 2 columnas | Mobile: Stack vertical */}
-        <div className="lg:grid lg:grid-cols-3 lg:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Columna Izquierda - Principal (2/3 en desktop) */}
           <div className="lg:col-span-2 space-y-3 sm:space-y-4 lg:space-y-6">
             {/* FASE 2: Vista semanal en móvil */}
             <div className="lg:hidden">
               <WeeklyOverviewCard 
                 weekStart={selectedWeekStart}
-                weekEnd={getWeekEnd(selectedWeekStart)}
+                weekEnd={selectedWeekEnd}
+                stats={weeklyStats}
+                loading={loading}
+                onReload={reload}
               />
             </div>
             
             {/* Planificación semanal en móvil */}
             <div className="lg:hidden">
-              <WeeklyPlanPreviewCard />
+              <WeeklyPlanPreviewCard 
+                weekStart={selectedWeekStart}
+                planData={planData}
+                loading={loading}
+              />
             </div>
             
-            <div className="text-center py-8 sm:py-12">
+            <div className="text-center py-8 sm:py-12 lg:hidden">
               <p className="text-sm sm:text-base text-dark-400 dark:text-dark-400 light:text-gray-600">
                 Dashboard en construcción...
               </p>
             </div>
+
+            <div className="hidden lg:block">
+              <TodayTrainingCard
+                data={todayTrainingData}
+                loading={todayLoading}
+                error={todayError}
+                onRetry={refreshToday}
+                onPrimaryAction={handleTodayPrimaryAction}
+                onSecondaryAction={handleTodaySecondaryAction}
+              />
+            </div>
+
+            <div className="hidden lg:block">
+              <WeeklyProgressCard
+                data={weeklyProgress}
+                loading={weeklyProgressLoading}
+                error={weeklyProgressError}
+                onRetry={refreshWeeklyProgress}
+              />
+            </div>
           </div>
 
           {/* Columna Derecha - Sidebar (1/3 en desktop) */}
-          <div className="hidden lg:block space-y-5 lg:space-y-6">
+          <div className="hidden lg:block lg:col-span-1 space-y-5 lg:space-y-6">
             {/* FASE 2: Vista semanal (desktop) */}
             <WeeklyOverviewCard 
               weekStart={selectedWeekStart}
-              weekEnd={getWeekEnd(selectedWeekStart)}
+              weekEnd={selectedWeekEnd}
+              stats={weeklyStats}
+              loading={loading}
+              onReload={reload}
             />
             
             {/* Planificación semanal (desktop) */}
-            <WeeklyPlanPreviewCard />
+            <WeeklyPlanPreviewCard 
+              weekStart={selectedWeekStart}
+              planData={planData}
+              loading={loading}
+            />
             
             {/* Tarjeta de estadísticas del miembro */}
             <MemberStatsCard />
@@ -114,10 +223,6 @@ export const MemberDashboard: React.FC = () => {
         </div>
       </main>
 
-      {/* Bottom Navigation - Solo visible en móvil */}
-      <div className="lg:hidden">
-        <BottomNav />
-      </div>
     </div>
   );
 };

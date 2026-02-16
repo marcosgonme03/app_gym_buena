@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/client';
 import { WorkoutLog, WeeklyStats } from '@/lib/supabase/types';
+import { getWeekDays } from '@/features/member/workoutPlan/weekHelpers';
 
 /**
  * Servicio para gestionar workout_logs (registros de entrenamientos)
@@ -73,7 +74,7 @@ export async function getWeeklyWorkoutCount(userId?: string, weekStart?: string,
       endISO = end.toISOString();
     }
 
-    console.log('[workoutLogs] Contando desde:', startISO, 'hasta:', endISO);
+    // console.log('[workoutLogs] Contando desde:', startISO, 'hasta:', endISO);
 
     // Contar logs en el rango
     const { count, error } = await supabase
@@ -85,7 +86,7 @@ export async function getWeeklyWorkoutCount(userId?: string, weekStart?: string,
 
     if (error) throw error;
 
-    console.log('[workoutLogs] Entrenamientos en la semana:', count);
+    // console.log('[workoutLogs] Entrenamientos en la semana:', count);
     return count || 0;
   } catch (error: any) {
     console.error('[workoutLogs] Error al contar entrenamientos:', error);
@@ -152,7 +153,7 @@ export async function getCurrentStreak(userId?: string): Promise<number> {
       currentCheckDate.setDate(currentCheckDate.getDate() - 1);
     }
 
-    console.log('[workoutLogs] Racha actual:', streak, 'días');
+    // console.log('[workoutLogs] Racha actual:', streak, 'días');
     return streak;
   } catch (error: any) {
     console.error('[workoutLogs] Error al calcular racha:', error);
@@ -184,7 +185,7 @@ export async function insertWorkoutLog(payload: InsertWorkoutLogPayload = {}): P
       notes: payload.notes || null
     };
 
-    console.log('[workoutLogs] Insertando workout log:', insertData);
+    // console.log('[workoutLogs] Insertando workout log:', insertData);
 
     const { data, error } = await supabase
       .from('workout_logs')
@@ -194,7 +195,7 @@ export async function insertWorkoutLog(payload: InsertWorkoutLogPayload = {}): P
 
     if (error) throw error;
 
-    console.log('[workoutLogs] ✅ Workout log insertado:', data);
+    // console.log('[workoutLogs] ✅ Workout log insertado:', data);
     
     // Validación adicional
     console.assert(data?.id, 'Insert debe devolver fila con id');
@@ -244,7 +245,7 @@ export async function getWeeklyStats(userId?: string, weekStart?: string, weekEn
       nextBookedClass: null // TODO: Implementar cuando exista tabla bookings
     };
 
-    console.log('[workoutLogs] ✅ Estadísticas semanales:', stats);
+    // console.log('[workoutLogs] ✅ Estadísticas semanales:', stats);
 
     return stats;
   } catch (error: any) {
@@ -307,9 +308,106 @@ export async function deleteWorkoutLog(logId: string): Promise<void> {
 
     if (error) throw error;
 
-    console.log('[workoutLogs] ✅ Workout log eliminado:', logId);
+    // console.log('[workoutLogs] ✅ Workout log eliminado:', logId);
   } catch (error: any) {
     console.error('[workoutLogs] ❌ Error al eliminar workout log:', error);
     throw new Error(error.message || 'Error al eliminar registro de entrenamiento');
+  }
+}
+
+// ============================================
+// 8. CONTAR WORKOUT LOGS EN UN DÍA
+// ============================================
+export async function getWorkoutCountForDate(date: string, userId?: string): Promise<number> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user && !userId) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    const targetUserId = userId || user!.id;
+
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const { count, error } = await supabase
+      .from('workout_logs')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', targetUserId)
+      .gte('performed_at', dayStart.toISOString())
+      .lte('performed_at', dayEnd.toISOString());
+
+    if (error) throw error;
+
+    return count || 0;
+  } catch (error: any) {
+    console.error('[workoutLogs] Error al contar entrenos por día:', error);
+    return 0;
+  }
+}
+
+export interface WeeklyWorkoutDistributionPoint {
+  date: string;
+  label: string;
+  completed: number;
+}
+
+// ============================================
+// 9. DISTRIBUCIÓN SEMANAL L-D
+// ============================================
+export async function getWeeklyWorkoutDistribution(
+  weekStart: string,
+  userId?: string
+): Promise<WeeklyWorkoutDistributionPoint[]> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user && !userId) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    const targetUserId = userId || user!.id;
+    const weekDays = getWeekDays(weekStart);
+    const weekEnd = weekDays[6];
+
+    const start = new Date(weekStart);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(weekEnd);
+    end.setHours(23, 59, 59, 999);
+
+    const { data, error } = await supabase
+      .from('workout_logs')
+      .select('performed_at')
+      .eq('user_id', targetUserId)
+      .gte('performed_at', start.toISOString())
+      .lte('performed_at', end.toISOString());
+
+    if (error) throw error;
+
+    const completedByDate = new Map<string, number>();
+
+    (data || []).forEach((log) => {
+      const dateKey = new Date(log.performed_at).toISOString().split('T')[0];
+      const current = completedByDate.get(dateKey) || 0;
+      completedByDate.set(dateKey, current + 1);
+    });
+
+    const labels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+    return weekDays.map((date, index) => ({
+      date,
+      label: labels[index],
+      completed: completedByDate.get(date) || 0
+    }));
+  } catch (error: any) {
+    console.error('[workoutLogs] Error al obtener distribución semanal:', error);
+    const weekDays = getWeekDays(weekStart);
+    const labels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+    return weekDays.map((date, index) => ({ date, label: labels[index], completed: 0 }));
   }
 }

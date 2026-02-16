@@ -11,6 +11,10 @@ import { AdminDashboard } from '@/pages/AdminDashboard';
 import { TrainerDashboard } from '@/pages/TrainerDashboard';
 import { Settings } from '@/pages/Settings';
 import { WorkoutPlanPage } from '@/features/member/workoutPlan/WorkoutPlanPage';
+import { TodayWorkout } from '@/pages/TodayWorkout';
+import { WorkoutSummary } from '@/pages/WorkoutSummary';
+import { ClassesCatalogPage } from '@/pages/ClassesCatalogPage';
+import { ClassDetailsPage } from '@/pages/ClassDetailsPage';
 
 export const App: React.FC = () => {
   return (
@@ -43,6 +47,62 @@ export const App: React.FC = () => {
               element={
                 <ProtectedRoute allowedRoles={['member']}>
                   <WorkoutPlanPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/app/workout"
+              element={
+                <ProtectedRoute allowedRoles={['member']}>
+                  <WorkoutPlanPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/app/workout/today"
+              element={
+                <ProtectedRoute allowedRoles={['member']}>
+                  <TodayWorkout />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/app/workout/summary/:sessionId"
+              element={
+                <ProtectedRoute allowedRoles={['member']}>
+                  <WorkoutSummary />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/app/classes"
+              element={
+                <ProtectedRoute allowedRoles={['member', 'trainer', 'admin']}>
+                  <ClassesCatalogPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/app/classes/:slug"
+              element={
+                <ProtectedRoute allowedRoles={['member', 'trainer', 'admin']}>
+                  <ClassDetailsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/classes"
+              element={
+                <ProtectedRoute allowedRoles={['member', 'trainer', 'admin']}>
+                  <ClassesCatalogPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/classes/:slug"
+              element={
+                <ProtectedRoute allowedRoles={['member', 'trainer', 'admin']}>
+                  <ClassDetailsPage />
                 </ProtectedRoute>
               }
             />

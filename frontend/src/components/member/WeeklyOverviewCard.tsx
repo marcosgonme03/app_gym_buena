@@ -4,35 +4,54 @@ import { WeeklyStats } from '@/lib/supabase/types';
 import { getWeeklyStats, insertWorkoutLog } from '@/services/workoutLogs';
 
 interface WeeklyOverviewCardProps {
-  weekStart?: string; // YYYY-MM-DD
-  weekEnd?: string; // YYYY-MM-DD
+  weekStart?: string;
+  weekEnd?: string;
+  stats?: WeeklyStats | null; // Datos externos del dashboard
+  loading?: boolean; // Estado de carga externo
+  onReload?: () => void; // Callback para recargar datos
 }
 
-export const WeeklyOverviewCard: React.FC<WeeklyOverviewCardProps> = ({ weekStart, weekEnd }) => {
+export const WeeklyOverviewCard: React.FC<WeeklyOverviewCardProps> = ({ 
+  weekStart, 
+  weekEnd, 
+  stats: externalStats,
+  loading: externalLoading,
+  onReload
+}) => {
   const { profile } = useAuth();
-  const [stats, setStats] = useState<WeeklyStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [internalStats, setInternalStats] = useState<WeeklyStats | null>(null);
+  const [internalLoading, setInternalLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  // Cargar estadísticas semanales
+  // Usar datos externos si están disponibles, si no cargar internamente
+  const stats = externalStats !== undefined ? externalStats : internalStats;
+  const loading = externalLoading !== undefined ? externalLoading : internalLoading;
+
+  // Cargar estadísticas semanales solo si no vienen del padre
   const loadStats = async () => {
+    if (externalStats !== undefined) return; // Usar datos del padre
+    if (!profile || profile.role !== 'member') {
+      setInternalLoading(false);
+      return;
+    }
+    
     try {
-      setLoading(true);
+      setInternalLoading(true);
       const weeklyStats = await getWeeklyStats(undefined, weekStart, weekEnd);
-      setStats(weeklyStats);
+      setInternalStats(weeklyStats);
     } catch (error) {
       console.error('[WeeklyOverviewCard] Error al cargar stats:', error);
     } finally {
-      setLoading(false);
+      setInternalLoading(false);
     }
   };
 
   useEffect(() => {
-    if (profile?.role === 'member') {
+    if (externalStats === undefined) {
       loadStats();
     }
-  }, [profile, weekStart, weekEnd]);
+  }, [weekStart, weekEnd, externalStats]);
 
   // Registrar entreno
   const handleRegisterWorkout = async () => {
@@ -47,8 +66,12 @@ export const WeeklyOverviewCard: React.FC<WeeklyOverviewCardProps> = ({ weekStar
         notes: 'Entrenamiento registrado desde dashboard'
       });
 
-      // Recargar stats
-      await loadStats();
+      // Recargar stats (usar callback del padre o interno)
+      if (onReload) {
+        await onReload();
+      } else {
+        await loadStats();
+      }
 
       // Mostrar toast de éxito
       setToast({ message: '¡Entreno registrado! 💪', type: 'success' });

@@ -1,10 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { BottomNav } from '@/components/layout/BottomNav';
 import { getWeeklyPlanFull, upsertPlanMeta, createSession, deleteSession, createExercise, reorderExercises } from './api';
-import { getWeekStart, addWeeks, formatWeekRange, getDayName, formatShortDate, getWeekDays, isDateInWeek } from './weekHelpers';
+import { getWeekStart, getWeekEnd, addWeeks, formatWeekRange, getDayName, formatShortDate, getWeekDays, isDateInWeek } from './weekHelpers';
 import type { WeeklyPlanFullDTO } from './types';
 import { ExerciseItem } from './components/ExerciseItem';
+import type { ClassesFilters, SessionWithAvailability } from '@/features/classes/types';
+import { useClassesWeek } from '@/features/classes/hooks/useClassesWeek';
+import { useMyBookings } from '@/features/classes/hooks/useMyBookings';
+import { useBookClass } from '@/features/classes/hooks/useBookClass';
+import { useCancelBooking } from '@/features/classes/hooks/useCancelBooking';
+import { MyBookedClassesStrip } from '@/features/classes/components/MyBookedClassesStrip';
+import { ReserveClassSection } from '@/features/classes/components/ReserveClassSection';
+import { ClassDetailsModal } from '@/features/classes/components/ClassDetailsModal';
+
+const defaultClassesFilters: ClassesFilters = {
+  search: '',
+  level: 'all',
+  trainerUserId: 'all',
+  day: 'all',
+  onlyAvailable: false,
+};
 
 export const WorkoutPlanPage: React.FC = () => {
   const { profile } = useAuth();
@@ -13,10 +30,13 @@ export const WorkoutPlanPage: React.FC = () => {
   
   const initialWeek = searchParams.get('week') || getWeekStart();
   const [weekStart, setWeekStart] = useState(initialWeek);
+  const [classesWeekStart, setClassesWeekStart] = useState(getWeekStart());
   const [planData, setPlanData] = useState<WeeklyPlanFullDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{message: string; type: 'success'|'error'} | null>(null);
+  const [classesFilters, setClassesFilters] = useState<ClassesFilters>(defaultClassesFilters);
+  const [selectedClassSession, setSelectedClassSession] = useState<SessionWithAvailability | null>(null);
 
   // Estados para modals/forms
   const [editingMeta, setEditingMeta] = useState(false);
@@ -31,6 +51,26 @@ export const WorkoutPlanPage: React.FC = () => {
     rest_seconds: 60,
     notes: ''
   });
+
+  const classesWeekEnd = getWeekEnd(classesWeekStart);
+
+  const {
+    data: classesSessions,
+    trainers,
+    loading: classesLoading,
+    error: classesError,
+    refresh: refreshClasses,
+  } = useClassesWeek(classesWeekStart, classesWeekEnd, classesFilters);
+
+  const {
+    data: myBookings,
+    loading: bookingsLoading,
+    error: bookingsError,
+    refresh: refreshBookings,
+  } = useMyBookings();
+
+  const { mutate: reserveClass, loading: reservingClass } = useBookClass();
+  const { mutate: cancelClassBooking, loading: cancellingClass } = useCancelBooking();
 
   useEffect(() => {
     loadPlan();
@@ -169,6 +209,36 @@ export const WorkoutPlanPage: React.FC = () => {
     }
   };
 
+  const handleReserveClass = async (session: SessionWithAvailability) => {
+    try {
+      await reserveClass(session.id);
+      showToast('Reserva confirmada', 'success');
+      await Promise.all([refreshClasses(), refreshBookings()]);
+    } catch (error: any) {
+      showToast(error.message || 'No se pudo reservar la clase', 'error');
+    }
+  };
+
+  const handleCancelClass = async (session: SessionWithAvailability) => {
+    try {
+      await cancelClassBooking(session.id);
+      showToast('Reserva cancelada', 'success');
+      await Promise.all([refreshClasses(), refreshBookings()]);
+    } catch (error: any) {
+      showToast(error.message || 'No se pudo cancelar la reserva', 'error');
+    }
+  };
+
+  const handleCancelClassBySessionId = async (sessionId: string) => {
+    try {
+      await cancelClassBooking(sessionId);
+      showToast('Reserva cancelada', 'success');
+      await Promise.all([refreshClasses(), refreshBookings()]);
+    } catch (error: any) {
+      showToast(error.message || 'No se pudo cancelar la reserva', 'error');
+    }
+  };
+
   if (!profile || profile.role !== 'member') {
     navigate('/app');
     return null;
@@ -189,6 +259,8 @@ export const WorkoutPlanPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-dark-950 dark:bg-dark-950 light:bg-gray-50 pb-20">
+      <BottomNav />
+
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg ${
@@ -236,6 +308,30 @@ export const WorkoutPlanPage: React.FC = () => {
       </header>
 
       <main className="px-4 sm:px-6 lg:px-8 py-6 max-w-7xl mx-auto space-y-6">
+        <MyBookedClassesStrip
+          bookings={myBookings}
+          loading={bookingsLoading}
+          error={bookingsError}
+          onRetry={refreshBookings}
+          onCancel={handleCancelClassBySessionId}
+        />
+
+        <ReserveClassSection
+          weekStart={classesWeekStart}
+          sessions={classesSessions}
+          trainers={trainers}
+          filters={classesFilters}
+          loading={classesLoading}
+          error={classesError}
+          actionLoading={reservingClass || cancellingClass}
+          onWeekChange={setClassesWeekStart}
+          onFiltersChange={setClassesFilters}
+          onRetry={refreshClasses}
+          onBook={handleReserveClass}
+          onCancel={handleCancelClass}
+          onDetails={setSelectedClassSession}
+        />
+
         {/* Meta del plan */}
         <div className="bg-dark-900 border border-dark-800 rounded-xl p-4 sm:p-6">
           {!editingMeta ? (
@@ -500,6 +596,8 @@ export const WorkoutPlanPage: React.FC = () => {
             </div>
           )}
         </div>
+
+        <ClassDetailsModal session={selectedClassSession} onClose={() => setSelectedClassSession(null)} />
       </main>
     </div>
   );
