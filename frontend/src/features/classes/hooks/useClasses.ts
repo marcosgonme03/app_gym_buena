@@ -3,19 +3,27 @@ import { supabase } from '@/lib/supabase/client';
 import { fetchClassesCatalog } from '@/features/classes/services/classesService';
 import type { GymClass } from '@/features/classes/types';
 
-interface SessionSummary {
+export interface SessionSummary {
   id: string;
   startsAt: string;
   endsAt: string;
   remainingSpots: number;
   totalSpots: number;
   isCancelled: boolean;
+  bookedSpots: number;
+  occupancyRatio: number;
+  hasMyBooking: boolean;
+  myBookingStatus: string | null;
+  startsInMinutes: number | null;
+  startsToday: boolean;
 }
 
 export interface ClassListItem extends GymClass {
   trainerName: string;
   nextSessions: SessionSummary[];
   availableSpots: number;
+  hasMyBooking: boolean;
+  nextMySession: SessionSummary | null;
 }
 
 interface UseClassesParams {
@@ -94,6 +102,10 @@ export function useClasses(params?: UseClassesParams) {
 
       const sessionIds = sessions.map((session) => session.id);
       const bookingCounts = new Map<string, number>();
+      const myBookingsBySession = new Map<string, { status: string }>();
+
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData.user?.id;
 
       if (sessionIds.length > 0) {
         const { data: countsRows, error: countsError } = await supabase.rpc('get_sessions_booking_counts', {
@@ -105,14 +117,35 @@ export function useClasses(params?: UseClassesParams) {
         for (const row of (countsRows || []) as Array<{ session_id: string; booked_count: number }>) {
           bookingCounts.set(row.session_id, row.booked_count || 0);
         }
+
+        if (userId) {
+          const { data: myBookingsRows, error: myBookingsError } = await supabase
+            .from('class_bookings')
+            .select('session_id,status')
+            .eq('user_id', userId)
+            .in('session_id', sessionIds)
+            .in('status', ['booked', 'confirmed', 'attended', 'cancelled', 'CANCELLED']);
+
+          if (myBookingsError) throw myBookingsError;
+
+          for (const booking of (myBookingsRows || []) as Array<{ session_id: string; status: string }>) {
+            myBookingsBySession.set(booking.session_id, { status: booking.status });
+          }
+        }
       }
 
       const sessionsByClass = new Map<string, SessionSummary[]>();
       for (const session of sessions) {
+        const startsAtDate = new Date(session.starts_at);
+        const diffMs = startsAtDate.getTime() - now.getTime();
+        const startsInMinutes = diffMs > 0 ? Math.floor(diffMs / 60000) : null;
+        const isToday = startsAtDate.toDateString() === now.toDateString();
         const classRelation = Array.isArray(session.classes) ? session.classes[0] : session.classes;
         const totalSpots = session.capacity_override ?? classRelation.capacity;
         const booked = bookingCounts.get(session.id) ?? 0;
         const remaining = Math.max(totalSpots - booked, 0);
+        const myBooking = myBookingsBySession.get(session.id);
+        const hasMyBooking = !!myBooking && !['cancelled', 'CANCELLED'].includes(myBooking.status);
 
         const mapped: SessionSummary = {
           id: session.id,
@@ -121,6 +154,12 @@ export function useClasses(params?: UseClassesParams) {
           remainingSpots: remaining,
           totalSpots,
           isCancelled: session.is_cancelled,
+          bookedSpots: booked,
+          occupancyRatio: Math.min(1, booked / Math.max(1, totalSpots)),
+          hasMyBooking,
+          myBookingStatus: myBooking?.status || null,
+          startsInMinutes,
+          startsToday: isToday,
         };
 
         const list = sessionsByClass.get(session.class_id) ?? [];
@@ -131,12 +170,15 @@ export function useClasses(params?: UseClassesParams) {
       const result: ClassListItem[] = classes.map((item) => {
         const nextSessions = (sessionsByClass.get(item.id) ?? []).slice(0, 3);
         const firstAvailable = nextSessions.find((session) => !session.isCancelled && session.remainingSpots > 0);
+        const nextMySession = nextSessions.find((session) => session.hasMyBooking) || null;
 
         return {
           ...item,
           trainerName: item.users ? `${item.users.name} ${item.users.last_name}`.trim() : 'Entrenador asignado',
           nextSessions,
           availableSpots: firstAvailable?.remainingSpots ?? 0,
+          hasMyBooking: nextSessions.some((session) => session.hasMyBooking),
+          nextMySession,
         };
       });
 

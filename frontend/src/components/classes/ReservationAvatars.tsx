@@ -9,17 +9,19 @@ interface ReservationUser {
 interface ReservationAvatarsProps {
   users: ReservationUser[];
   totalReserved: number;
+  demandLabel?: string | null;
 }
 
-export const ReservationAvatars: React.FC<ReservationAvatarsProps> = ({ users, totalReserved }) => {
+export const ReservationAvatars: React.FC<ReservationAvatarsProps> = ({ users, totalReserved, demandLabel }) => {
   return (
     <section className="rounded-xl border border-dark-800 bg-dark-900 p-4">
-      <h3 className="text-sm font-semibold text-dark-100 mb-3">{totalReserved} han reservado</h3>
+      <h3 className="text-sm font-semibold text-dark-100 mb-1">{totalReserved} personas apuntadas</h3>
+      {demandLabel && <p className="text-xs text-primary-200 mb-3">{demandLabel}</p>}
       {users.length === 0 ? (
         <p className="text-xs text-dark-400">Aún no hay participantes visibles para esta sesión.</p>
       ) : (
         <div className="flex items-center gap-2">
-          {users.slice(0, 8).map((user) => (
+          {users.slice(0, 5).map((user) => (
             user.avatarUrl ? (
               <img
                 key={user.userId}

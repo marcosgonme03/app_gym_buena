@@ -10,6 +10,25 @@ import type {
 
 export const BOOKING_UPDATED_EVENT = 'classes:booking-updated';
 
+const CLASS_SELECT_BASE = `
+  id,
+  title,
+  slug,
+  description,
+  trainer_user_id,
+  level,
+  duration_min,
+  capacity,
+  cover_image_url,
+  is_active,
+  created_at,
+  updated_at
+`;
+
+function classSelect(includeVideo = true) {
+  return includeVideo ? `${CLASS_SELECT_BASE}, video_url` : CLASS_SELECT_BASE;
+}
+
 export function notifyBookingUpdated() {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(BOOKING_UPDATED_EVENT));
@@ -191,65 +210,137 @@ export async function fetchClassesCatalog(params?: {
   level?: 'all' | 'beginner' | 'intermediate' | 'advanced';
   onlyActive?: boolean;
 }): Promise<GymClass[]> {
-  let query = supabase
-    .from('classes')
-    .select(`
-      id,
-      title,
-      slug,
-      description,
-      trainer_user_id,
-      level,
-      duration_min,
-      capacity,
-      cover_image_url,
-      is_active,
-      created_at,
-      updated_at
-    `)
-    .order('title', { ascending: true });
+  const buildQuery = (includeVideo: boolean) => {
+    let query = supabase
+      .from('classes')
+      .select(classSelect(includeVideo))
+      .order('title', { ascending: true });
 
-  if (params?.onlyActive !== false) {
-    query = query.eq('is_active', true);
+    if (params?.onlyActive !== false) {
+      query = query.eq('is_active', true);
+    }
+
+    if (params?.search?.trim()) {
+      query = query.ilike('title', `%${params.search.trim()}%`);
+    }
+
+    if (params?.level && params.level !== 'all') {
+      query = query.eq('level', params.level);
+    }
+
+    return query;
+  };
+
+  let { data, error } = await buildQuery(true);
+  if (error?.message?.toLowerCase().includes('video_url')) {
+    const fallback = await buildQuery(false);
+    data = fallback.data;
+    error = fallback.error;
   }
 
-  if (params?.search?.trim()) {
-    query = query.ilike('title', `%${params.search.trim()}%`);
-  }
-
-  if (params?.level && params.level !== 'all') {
-    query = query.eq('level', params.level);
-  }
-
-  const { data, error } = await query;
   if (error) throw new Error(error.message);
   return enrichGymClasses(data || []);
 }
 
 export async function fetchClassBySlug(slug: string): Promise<GymClass | null> {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('classes')
-    .select(`
-      id,
-      title,
-      slug,
-      description,
-      trainer_user_id,
-      level,
-      duration_min,
-      capacity,
-      cover_image_url,
-      is_active,
-      created_at,
-      updated_at
-    `)
+    .select(classSelect(true))
     .eq('slug', slug)
     .maybeSingle();
+
+  if (error?.message?.toLowerCase().includes('video_url')) {
+    const fallback = await supabase
+      .from('classes')
+      .select(classSelect(false))
+      .eq('slug', slug)
+      .maybeSingle();
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) throw new Error(error.message);
   if (!data) return null;
   const [enriched] = await enrichGymClasses([data]);
   return enriched || null;
+}
+
+export interface ClassDemandSignal {
+  classId: string;
+  recentBookings: number;
+  previousBookings: number;
+  trend: 'up' | 'steady' | 'down';
+  label: 'Muy demandada' | '↑ Popular esta semana' | 'Estable';
+}
+
+export async function fetchClassDemandSignals(classIds: string[]): Promise<Record<string, ClassDemandSignal>> {
+  const uniqueClassIds = Array.from(new Set(classIds.filter(Boolean)));
+  if (uniqueClassIds.length === 0) return {};
+
+  const { data: sessionsRows, error: sessionsError } = await supabase
+    .from('class_sessions')
+    .select('id,class_id')
+    .in('class_id', uniqueClassIds);
+
+  if (sessionsError) throw new Error(sessionsError.message);
+
+  const sessionRows = (sessionsRows || []) as Array<{ id: string; class_id: string }>;
+  const sessionIds = sessionRows.map((session) => session.id);
+  if (sessionIds.length === 0) return {};
+
+  const since = new Date();
+  since.setDate(since.getDate() - 14);
+
+  const { data: bookingRows, error: bookingsError } = await supabase
+    .from('class_bookings')
+    .select('session_id,booked_at,status')
+    .in('session_id', sessionIds)
+    .in('status', ['booked', 'confirmed', 'attended'])
+    .gte('booked_at', since.toISOString());
+
+  if (bookingsError) throw new Error(bookingsError.message);
+
+  const sessionToClass = new Map(sessionRows.map((session) => [session.id, session.class_id]));
+  const nowMs = Date.now();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const recentCount = new Map<string, number>();
+  const previousCount = new Map<string, number>();
+
+  for (const booking of (bookingRows || []) as Array<{ session_id: string; booked_at: string }>) {
+    const classId = sessionToClass.get(booking.session_id);
+    if (!classId) continue;
+
+    const age = nowMs - new Date(booking.booked_at).getTime();
+    if (age <= sevenDaysMs) {
+      recentCount.set(classId, (recentCount.get(classId) || 0) + 1);
+    } else if (age <= sevenDaysMs * 2) {
+      previousCount.set(classId, (previousCount.get(classId) || 0) + 1);
+    }
+  }
+
+  const result: Record<string, ClassDemandSignal> = {};
+  for (const classId of uniqueClassIds) {
+    const recent = recentCount.get(classId) || 0;
+    const previous = previousCount.get(classId) || 0;
+
+    let trend: ClassDemandSignal['trend'] = 'steady';
+    if (recent > previous) trend = 'up';
+    if (recent < previous) trend = 'down';
+
+    let label: ClassDemandSignal['label'] = 'Estable';
+    if (recent >= 8) label = 'Muy demandada';
+    else if (trend === 'up' && recent >= 3) label = '↑ Popular esta semana';
+
+    result[classId] = {
+      classId,
+      recentBookings: recent,
+      previousBookings: previous,
+      trend,
+      label,
+    };
+  }
+
+  return result;
 }
 
 export async function fetchClassSessionsByClass(classId: string, from?: string, to?: string): Promise<SessionWithAvailability[]> {

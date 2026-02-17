@@ -10,6 +10,7 @@ export interface GymClass {
   duration_min: number;
   capacity: number;
   cover_image_url: string | null;
+  video_url?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -19,6 +20,8 @@ export interface GymClass {
     last_name: string;
     email: string;
     avatar_url?: string | null;
+    specialty?: string | null;
+    rating?: number | null;
   } | null;
 }
 
