@@ -29,6 +29,11 @@ export const AuthCard: React.FC<AuthCardProps> = ({ children, title, subtitle })
         <div className="glass-effect rounded-2xl shadow-2xl p-8 space-y-6">
           {/* Header */}
           <div className="text-center space-y-2">
+            <img
+              src="/logo-gymflow.png"
+              alt="GymFlow"
+              className="w-14 h-14 mx-auto rounded-xl border border-dark-700 bg-dark-900/70 p-2"
+            />
             <h1 className="text-3xl font-bold text-dark-50 tracking-tight">
               {title}
             </h1>

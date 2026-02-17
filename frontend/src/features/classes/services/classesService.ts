@@ -69,6 +69,33 @@ function applyFilters(sessions: SessionWithAvailability[], filters: ClassesFilte
   });
 }
 
+async function fetchBookedCountsForSessions(sessionIds: string[]): Promise<Map<string, number>> {
+  if (sessionIds.length === 0) return new Map();
+
+  const { data, error } = await supabase.rpc('get_sessions_booking_counts', {
+    p_session_ids: sessionIds,
+  });
+
+  if (error) throw new Error(error.message);
+
+  const counts = new Map<string, number>();
+  (data || []).forEach((row: { session_id: string; booked_count: number }) => {
+    counts.set(row.session_id, row.booked_count || 0);
+  });
+
+  return counts;
+}
+
+export async function fetchClassSessionParticipants(sessionId: string, limit = 12) {
+  const { data, error } = await supabase.rpc('get_class_session_participants', {
+    p_session_id: sessionId,
+    p_limit: limit,
+  });
+
+  if (error) throw new Error(error.message);
+  return (data || []) as Array<{ user_id: string; full_name: string; avatar_url: string | null }>;
+}
+
 function normalizeGymClass(row: any): GymClass {
   const usersRelation = row?.users;
   const normalizedUser = Array.isArray(usersRelation)
@@ -261,21 +288,24 @@ export async function fetchClassSessionsByClass(classId: string, from?: string, 
   if (sessions.length === 0) return [];
 
   const sessionIds = sessions.map((session) => session.id);
-  const { data: bookingsData, error: bookingsError } = await supabase
-    .from('class_bookings')
-    .select('*')
-    .in('session_id', sessionIds)
-    .in('status', ['booked', 'confirmed', 'attended', 'cancelled', 'CANCELLED', 'no_show']);
+  const bookedCounts = await fetchBookedCountsForSessions(sessionIds);
 
-  if (bookingsError) throw new Error(bookingsError.message);
+  let myBookings: ClassBooking[] = [];
+  if (userId) {
+    const { data: myBookingsData, error: myBookingsError } = await supabase
+      .from('class_bookings')
+      .select('*')
+      .eq('user_id', userId)
+      .in('session_id', sessionIds)
+      .in('status', ['booked', 'confirmed', 'attended', 'cancelled', 'CANCELLED', 'no_show']);
 
-  const bookings = (bookingsData || []) as ClassBooking[];
+    if (myBookingsError) throw new Error(myBookingsError.message);
+    myBookings = (myBookingsData || []) as ClassBooking[];
+  }
 
   return sessions.map((session) => {
-    const sessionBookings = bookings.filter((booking) => booking.session_id === session.id);
-    const activeBookings = sessionBookings.filter((booking) => booking.status === 'booked' || booking.status === 'confirmed' || booking.status === 'attended');
-    const myBooking = userId ? sessionBookings.find((booking) => booking.user_id === userId) || null : null;
-    return mapAvailability(session, activeBookings.length, myBooking);
+    const myBooking = myBookings.find((booking) => booking.session_id === session.id) || null;
+    return mapAvailability(session, bookedCounts.get(session.id) || 0, myBooking);
   });
 }
 
@@ -384,22 +414,24 @@ export async function fetchClassesWeek(
 
   const sessionIds = sessions.map((session) => session.id);
 
-  const { data: bookingsData, error: bookingsError } = await supabase
-    .from('class_bookings')
-    .select('*')
-    .in('session_id', sessionIds)
-    .in('status', ['booked', 'confirmed', 'attended', 'cancelled', 'CANCELLED', 'no_show']);
+  const bookedCounts = await fetchBookedCountsForSessions(sessionIds);
 
-  if (bookingsError) throw new Error(bookingsError.message);
+  let myBookings: ClassBooking[] = [];
+  if (userId) {
+    const { data: myBookingsData, error: myBookingsError } = await supabase
+      .from('class_bookings')
+      .select('*')
+      .eq('user_id', userId)
+      .in('session_id', sessionIds)
+      .in('status', ['booked', 'confirmed', 'attended', 'cancelled', 'CANCELLED', 'no_show']);
 
-  const bookings = (bookingsData || []) as ClassBooking[];
+    if (myBookingsError) throw new Error(myBookingsError.message);
+    myBookings = (myBookingsData || []) as ClassBooking[];
+  }
 
   const result = sessions.map((session) => {
-    const sessionBookings = bookings.filter((booking) => booking.session_id === session.id);
-    const activeBookings = sessionBookings.filter((booking) => booking.status === 'booked' || booking.status === 'confirmed' || booking.status === 'attended');
-    const myBooking = userId ? sessionBookings.find((booking) => booking.user_id === userId) || null : null;
-
-    return mapAvailability(session, activeBookings.length, myBooking);
+    const myBooking = myBookings.find((booking) => booking.session_id === session.id) || null;
+    return mapAvailability(session, bookedCounts.get(session.id) || 0, myBooking);
   });
 
   return applyFilters(result, filters);

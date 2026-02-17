@@ -100,7 +100,18 @@ export const BottomNav: React.FC = () => {
 
       <nav className="hidden lg:block bg-dark-900 border-b border-dark-800 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-8">
-          <div className="flex items-center h-14 gap-2">
+          <div className="flex items-center h-14 gap-4">
+            <button
+              onClick={() => navigate('/app')}
+              className="inline-flex items-center gap-2 mr-2 px-2 py-1 rounded-lg hover:bg-dark-800/70 transition-colors"
+            >
+              <img
+                src="/logo-gymflow.png"
+                alt="GymFlow"
+                className="w-8 h-8 rounded-lg border border-dark-700 bg-dark-900/70 p-1"
+              />
+              <span className="text-sm font-semibold text-dark-100">GymFlow</span>
+            </button>
             {navItems.map((item) => {
               const active = isActive(item.path);
               return (

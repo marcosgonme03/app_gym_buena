@@ -96,17 +96,14 @@ export function useClasses(params?: UseClassesParams) {
       const bookingCounts = new Map<string, number>();
 
       if (sessionIds.length > 0) {
-        const { data: bookingsRows, error: bookingsError } = await supabase
-          .from('class_bookings')
-          .select('session_id,status')
-          .in('session_id', sessionIds)
-          .in('status', ['confirmed', 'booked']);
+        const { data: countsRows, error: countsError } = await supabase.rpc('get_sessions_booking_counts', {
+          p_session_ids: sessionIds,
+        });
 
-        if (bookingsError) throw bookingsError;
+        if (countsError) throw countsError;
 
-        for (const row of bookingsRows || []) {
-          const sessionId = (row as { session_id: string }).session_id;
-          bookingCounts.set(sessionId, (bookingCounts.get(sessionId) ?? 0) + 1);
+        for (const row of (countsRows || []) as Array<{ session_id: string; booked_count: number }>) {
+          bookingCounts.set(row.session_id, row.booked_count || 0);
         }
       }
 
@@ -154,6 +151,23 @@ export function useClasses(params?: UseClassesParams) {
 
   useEffect(() => {
     refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      refresh();
+    }, 20000);
+
+    const onFocus = () => {
+      refresh();
+    };
+
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [refresh]);
 
   return { data, loading, error, refresh };

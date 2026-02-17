@@ -12,6 +12,7 @@ import { useClassSessions } from '@/features/classes/hooks/useClassSessions';
 import { useMyBookingsForClass } from '@/features/classes/hooks/useMyBookingsForClass';
 import { useBookSession } from '@/features/classes/hooks/useBookSession';
 import { useCancelBooking } from '@/features/classes/hooks/useCancelBooking';
+import { fetchClassSessionParticipants } from '@/features/classes/services/classesService';
 import { supabase } from '@/lib/supabase/client';
 
 interface ReservationUser {
@@ -108,41 +109,51 @@ export const ClassDetailsPage: React.FC = () => {
         return;
       }
 
-      const { data: bookingsRows, error: bookingsQueryError } = await supabase
-        .from('class_bookings')
-        .select('user_id,status')
-        .eq('session_id', selectedSession.id)
-        .in('status', ['confirmed', 'booked'])
-        .limit(8);
+      try {
+        const participants = await fetchClassSessionParticipants(selectedSession.id, 8);
+        if (!participants.length) {
+          setReservationUsers([]);
+          return;
+        }
 
-      if (bookingsQueryError || !bookingsRows?.length) {
+        setReservationUsers(
+          participants.map((participant) => ({
+            userId: participant.user_id,
+            fullName: participant.full_name || 'Usuario',
+            avatarUrl: participant.avatar_url,
+          }))
+        );
+      } catch {
         setReservationUsers([]);
-        return;
       }
-
-      const userIds = bookingsRows.map((row) => row.user_id);
-      const { data: usersRows, error: usersQueryError } = await supabase
-        .from('users')
-        .select('user_id,name,last_name,avatar_url')
-        .in('user_id', userIds)
-        .limit(8);
-
-      if (usersQueryError || !usersRows?.length) {
-        setReservationUsers([]);
-        return;
-      }
-
-      setReservationUsers(
-        usersRows.map((user) => ({
-          userId: user.user_id,
-          fullName: `${user.name} ${user.last_name}`.trim(),
-          avatarUrl: user.avatar_url,
-        }))
-      );
     };
 
     loadReservationUsers();
   }, [selectedSession]);
+
+  useEffect(() => {
+    if (!classData?.id) return;
+
+    const channel = supabase
+      .channel(`class-live-${classData.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'class_bookings' },
+        async () => {
+          await Promise.all([refreshSessions(), refreshBookings()]);
+        }
+      )
+      .subscribe();
+
+    const intervalId = window.setInterval(async () => {
+      await Promise.all([refreshSessions(), refreshBookings()]);
+    }, 15000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      channel.unsubscribe();
+    };
+  }, [classData?.id, refreshSessions, refreshBookings]);
 
   const isBookedByMe = useMemo(() => {
     if (!selectedSession) return false;
