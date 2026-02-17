@@ -1,4 +1,4 @@
-export type BookingStatus = 'booked' | 'cancelled' | 'attended' | 'no_show';
+export type BookingStatus = 'booked' | 'confirmed' | 'cancelled' | 'CANCELLED' | 'attended' | 'no_show';
 
 export interface GymClass {
   id: string;
@@ -18,6 +18,7 @@ export interface GymClass {
     name: string;
     last_name: string;
     email: string;
+    avatar_url?: string | null;
   } | null;
 }
 
@@ -48,6 +49,7 @@ export interface ClassBooking {
     name: string;
     last_name: string;
     email: string;
+    avatar_url?: string | null;
   } | null;
 }
 

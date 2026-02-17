@@ -13,7 +13,7 @@ import { Settings } from '@/pages/Settings';
 import { WorkoutPlanPage } from '@/features/member/workoutPlan/WorkoutPlanPage';
 import { TodayWorkout } from '@/pages/TodayWorkout';
 import { WorkoutSummary } from '@/pages/WorkoutSummary';
-import { ClassesCatalogPage } from '@/pages/ClassesCatalogPage';
+import { ClassesListPage } from '@/pages/ClassesListPage';
 import { ClassDetailsPage } from '@/pages/ClassDetailsPage';
 
 export const App: React.FC = () => {
@@ -36,6 +36,14 @@ export const App: React.FC = () => {
             {/* Rutas protegidas por role */}
             <Route
               path="/app"
+              element={
+                <ProtectedRoute allowedRoles={['member']}>
+                  <MemberDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/home"
               element={
                 <ProtectedRoute allowedRoles={['member']}>
                   <MemberDashboard />
@@ -78,7 +86,7 @@ export const App: React.FC = () => {
               path="/app/classes"
               element={
                 <ProtectedRoute allowedRoles={['member', 'trainer', 'admin']}>
-                  <ClassesCatalogPage />
+                  <ClassesListPage />
                 </ProtectedRoute>
               }
             />
@@ -94,7 +102,7 @@ export const App: React.FC = () => {
               path="/classes"
               element={
                 <ProtectedRoute allowedRoles={['member', 'trainer', 'admin']}>
-                  <ClassesCatalogPage />
+                  <ClassesListPage />
                 </ProtectedRoute>
               }
             />

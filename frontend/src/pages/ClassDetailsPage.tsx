@@ -1,31 +1,40 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BottomNav } from '@/components/layout/BottomNav';
-import { useClassDetails } from '@/features/classes/hooks/useClassDetails';
+import { ClassHero } from '@/components/classes/ClassHero';
+import { TrainerCard } from '@/components/classes/TrainerCard';
+import { ReservationAvatars } from '@/components/classes/ReservationAvatars';
+import { CollapsibleInfo } from '@/components/classes/CollapsibleInfo';
+import { BookingCTA } from '@/components/classes/BookingCTA';
+import { SessionPicker, type SessionPickerItem } from '@/components/classes/SessionPicker';
+import { useClassBySlug } from '@/features/classes/hooks/useClassBySlug';
 import { useClassSessions } from '@/features/classes/hooks/useClassSessions';
 import { useMyBookingsForClass } from '@/features/classes/hooks/useMyBookingsForClass';
-import { useBookClass } from '@/features/classes/hooks/useBookClass';
+import { useBookSession } from '@/features/classes/hooks/useBookSession';
 import { useCancelBooking } from '@/features/classes/hooks/useCancelBooking';
-import { getWeekStart, getWeekEnd } from '@/features/member/workoutPlan/weekHelpers';
+import { supabase } from '@/lib/supabase/client';
 
-const availabilityStyle = (remaining: number) => {
-  if (remaining <= 0) return 'text-red-400';
-  if (remaining <= 3) return 'text-yellow-400';
-  return 'text-green-400';
-};
+interface ReservationUser {
+  userId: string;
+  fullName: string;
+  avatarUrl?: string | null;
+}
 
 export const ClassDetailsPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
 
-  const { data: classData, loading, error, refresh } = useClassDetails(slug);
+  const { data: classData, loading: classLoading, error: classError, refresh: refreshClass } = useClassBySlug(slug);
 
-  const weekStart = getWeekStart();
-  const weekEnd = getWeekEnd(weekStart);
-  const range = useMemo(() => ({
-    start: `${weekStart}T00:00:00.000Z`,
-    end: `${weekEnd}T23:59:59.999Z`,
-  }), [weekStart, weekEnd]);
+  const range = useMemo(() => {
+    const start = new Date();
+    const end = new Date();
+    end.setDate(end.getDate() + 14);
+    return {
+      start: start.toISOString(),
+      end: end.toISOString(),
+    };
+  }, []);
 
   const {
     data: sessions,
@@ -39,199 +48,243 @@ export const ClassDetailsPage: React.FC = () => {
     loading: bookingsLoading,
     error: bookingsError,
     refresh: refreshBookings,
-  } = useMyBookingsForClass(classData?.id);
+  } = useMyBookingsForClass(classData?.id, 20);
 
-  const { mutate: reserveClass, loading: reserving } = useBookClass();
-  const { mutate: cancelClass, loading: cancelling } = useCancelBooking();
+  const { mutate: reserve, loading: bookingLoading } = useBookSession();
+  const { mutate: cancel, loading: cancelLoading } = useCancelBooking();
 
-  const syncAll = async () => {
-    await Promise.all([refreshSessions(), refreshBookings()]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [reservationUsers, setReservationUsers] = useState<ReservationUser[]>([]);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    if (!sessions.length) {
+      setSelectedSessionId(null);
+      return;
+    }
+
+    const firstSelectable = sessions.find((session) => !session.is_cancelled && new Date(session.ends_at) > new Date()) ?? sessions[0];
+    setSelectedSessionId(firstSelectable.id);
+  }, [sessions]);
+
+  const selectedSession = useMemo(() => {
+    if (!selectedSessionId) return null;
+    return sessions.find((item) => item.id === selectedSessionId) ?? null;
+  }, [sessions, selectedSessionId]);
+
+  const sessionItems = useMemo<SessionPickerItem[]>(() => {
+    const mySessionIds = new Set(
+      myBookings
+        .filter((booking) => booking.status === 'booked' || booking.status === 'confirmed')
+        .map((booking) => booking.session_id)
+    );
+
+    return sessions.map((session) => {
+      const totalSpots = session.capacity_override ?? session.classes.capacity;
+      return {
+        id: session.id,
+        startsAt: session.starts_at,
+        endsAt: session.ends_at,
+        remainingSpots: session.remainingSpots,
+        totalSpots,
+        isCancelled: session.is_cancelled,
+        isBookedByMe: mySessionIds.has(session.id),
+      };
+    });
+  }, [sessions, myBookings]);
+
+  const selectedSessionLabel = useMemo(() => {
+    if (!selectedSession) return 'Selecciona un horario disponible';
+    const starts = new Date(selectedSession.starts_at);
+    const ends = new Date(selectedSession.ends_at);
+
+    return `${starts.toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: 'long' })} · ${starts.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - ${ends.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+  }, [selectedSession]);
+
+  useEffect(() => {
+    const loadReservationUsers = async () => {
+      if (!selectedSession) {
+        setReservationUsers([]);
+        return;
+      }
+
+      const { data: bookingsRows, error: bookingsQueryError } = await supabase
+        .from('class_bookings')
+        .select('user_id,status')
+        .eq('session_id', selectedSession.id)
+        .in('status', ['confirmed', 'booked'])
+        .limit(8);
+
+      if (bookingsQueryError || !bookingsRows?.length) {
+        setReservationUsers([]);
+        return;
+      }
+
+      const userIds = bookingsRows.map((row) => row.user_id);
+      const { data: usersRows, error: usersQueryError } = await supabase
+        .from('users')
+        .select('user_id,name,last_name,avatar_url')
+        .in('user_id', userIds)
+        .limit(8);
+
+      if (usersQueryError || !usersRows?.length) {
+        setReservationUsers([]);
+        return;
+      }
+
+      setReservationUsers(
+        usersRows.map((user) => ({
+          userId: user.user_id,
+          fullName: `${user.name} ${user.last_name}`.trim(),
+          avatarUrl: user.avatar_url,
+        }))
+      );
+    };
+
+    loadReservationUsers();
+  }, [selectedSession]);
+
+  const isBookedByMe = useMemo(() => {
+    if (!selectedSession) return false;
+
+    return myBookings.some(
+      (booking) =>
+        booking.session_id === selectedSession.id &&
+        (booking.status === 'booked' || booking.status === 'confirmed')
+    );
+  }, [myBookings, selectedSession]);
+
+  const isSessionPast = selectedSession ? new Date(selectedSession.ends_at) <= new Date() : false;
+  const isSessionFull = selectedSession ? selectedSession.remainingSpots <= 0 && !isBookedByMe : false;
+  const canReserve = Boolean(selectedSession && !isSessionPast && !selectedSession.is_cancelled && !isSessionFull && !isBookedByMe);
+  const canCancel = Boolean(selectedSession && !isSessionPast && isBookedByMe);
+
+  const selectedReservedCount = selectedSession?.bookedCount ?? 0;
+
+  const onReserve = async () => {
+    if (!selectedSession) return;
+
+    try {
+      await reserve(selectedSession.id);
+      setToast({ type: 'success', message: 'Reserva confirmada.' });
+      await Promise.all([refreshSessions(), refreshBookings()]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo completar la reserva';
+      setToast({ type: 'error', message });
+    }
   };
 
-  if (loading) {
+  const onCancel = async () => {
+    if (!selectedSession) return;
+
+    try {
+      await cancel(selectedSession.id);
+      setToast({ type: 'success', message: 'Reserva cancelada correctamente.' });
+      await Promise.all([refreshSessions(), refreshBookings()]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo cancelar la reserva';
+      setToast({ type: 'error', message });
+    }
+  };
+
+  const syncError = classError || sessionsError || bookingsError;
+  const showLoading = classLoading || sessionsLoading || bookingsLoading;
+
+  if (showLoading) {
     return (
-      <div className="min-h-screen bg-dark-950 light:bg-gray-50 pb-24 lg:pb-8">
+      <div className="min-h-screen bg-dark-950 light:bg-gray-50 pb-28">
         <BottomNav />
-        <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6">
-          <div className="animate-pulse h-80 rounded-xl bg-dark-800" />
+        <div className="max-w-6xl mx-auto px-4 py-6">
+          <div className="animate-pulse h-80 rounded-2xl bg-dark-800" />
         </div>
       </div>
     );
   }
 
-  if (error || !classData) {
+  if (syncError || !classData) {
     return (
-      <div className="min-h-screen bg-dark-950 light:bg-gray-50 pb-24 lg:pb-8">
+      <div className="min-h-screen bg-dark-950 light:bg-gray-50 pb-24">
         <BottomNav />
-        <div className="w-full max-w-3xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-8">
-          <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4">
-            <p className="text-sm text-red-300 mb-2">{error || 'Clase no encontrada'}</p>
-            <button onClick={refresh} className="px-3 py-2 rounded-lg bg-dark-800 hover:bg-dark-700 text-dark-100 text-sm">Reintentar</button>
+        <div className="max-w-3xl mx-auto px-4 py-8">
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 space-y-3">
+            <p className="text-sm text-red-300">{syncError || 'No se pudo cargar el detalle de la clase.'}</p>
+            <button
+              onClick={() => {
+                refreshClass();
+                refreshSessions();
+                refreshBookings();
+              }}
+              className="px-3 py-2 rounded-lg bg-dark-800 hover:bg-dark-700 text-dark-100 text-sm"
+            >
+              Reintentar
+            </button>
           </div>
         </div>
       </div>
     );
   }
-
-  const cover = classData.cover_image_url || 'https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=1400&q=80';
-  const trainer = classData.users ? `${classData.users.name} ${classData.users.last_name}` : 'Por asignar';
 
   return (
-    <div className="min-h-screen bg-dark-950 light:bg-gray-50 pb-24 lg:pb-8">
+    <div className="min-h-screen bg-dark-950 light:bg-gray-50 pb-28">
       <BottomNav />
 
-      <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 space-y-6">
-        <button onClick={() => navigate('/app/classes')} className="px-3 py-2 rounded-lg bg-dark-800 hover:bg-dark-700 text-dark-100 text-sm">
-          ← Volver a Clases
+      <main className="max-w-6xl mx-auto px-4 sm:px-5 lg:px-6 py-5 space-y-4">
+        <button
+          onClick={() => navigate('/app/classes')}
+          className="px-3 py-2 rounded-lg bg-dark-800 hover:bg-dark-700 text-dark-100 text-sm"
+        >
+          ← Volver a clases
         </button>
 
-        <section className="rounded-2xl overflow-hidden border border-dark-800 bg-dark-900">
-          <div className="relative h-64 md:h-80">
-            <img src={cover} alt={classData.title} className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-            <div className="absolute bottom-4 left-4 right-4">
-              <h1 className="text-2xl md:text-3xl font-bold text-white">{classData.title}</h1>
-              <p className="text-sm text-gray-200 mt-2 max-w-3xl">{classData.description || 'Sin descripción disponible.'}</p>
-            </div>
+        {toast && (
+          <div className={`rounded-lg border p-3 text-sm ${toast.type === 'success' ? 'border-green-500/30 bg-green-500/10 text-green-200' : 'border-red-500/30 bg-red-500/10 text-red-200'}`}>
+            {toast.message}
+          </div>
+        )}
+
+        <ClassHero item={classData} selectedSessionLabel={selectedSessionLabel} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 space-y-4">
+            <SessionPicker
+              sessions={sessionItems}
+              selectedSessionId={selectedSessionId}
+              onSelectSession={setSelectedSessionId}
+            />
+
+            <CollapsibleInfo
+              objective={`Mejorar tu rendimiento en ${classData.title.toLowerCase()} con técnica segura y progresión sostenible.`}
+              material="Toalla, botella de agua y ropa técnica transpirable."
+              intensity={classData.level === 'advanced' ? 'Alta' : classData.level === 'intermediate' ? 'Media' : 'Moderada'}
+              requirements="Apto para personas sanas; adapta cargas si vuelves de lesión."
+              cancellationPolicy="Cancela con al menos 2 horas de antelación para liberar plaza."
+            />
           </div>
 
-          <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="rounded-lg border border-dark-800 bg-dark-950/60 p-3">
-              <p className="text-xs text-dark-400">Entrenador</p>
-              <p className="text-sm text-dark-100 mt-1">{trainer}</p>
-            </div>
-            <div className="rounded-lg border border-dark-800 bg-dark-950/60 p-3">
-              <p className="text-xs text-dark-400">Nivel</p>
-              <p className="text-sm text-dark-100 mt-1">{classData.level || 'Todos'}</p>
-            </div>
-            <div className="rounded-lg border border-dark-800 bg-dark-950/60 p-3">
-              <p className="text-xs text-dark-400">Duración</p>
-              <p className="text-sm text-dark-100 mt-1">{classData.duration_min} min</p>
-            </div>
-            <div className="rounded-lg border border-dark-800 bg-dark-950/60 p-3">
-              <p className="text-xs text-dark-400">Capacidad base</p>
-              <p className="text-sm text-dark-100 mt-1">{classData.capacity}</p>
-            </div>
+          <div className="space-y-4">
+            <TrainerCard
+              name={classData.users ? `${classData.users.name} ${classData.users.last_name}`.trim() : 'Entrenador del centro'}
+              avatarUrl={classData.users?.avatar_url ?? null}
+            />
+
+            <ReservationAvatars
+              users={reservationUsers}
+              totalReserved={selectedReservedCount}
+            />
           </div>
-        </section>
+        </div>
+      </main>
 
-        <section className="bg-dark-900 border border-dark-800 rounded-xl p-4">
-          <h2 className="text-lg font-semibold text-dark-50 mb-3">Mis próximas reservas</h2>
-          {bookingsLoading ? (
-            <div className="animate-pulse h-12 bg-dark-800 rounded" />
-          ) : bookingsError ? (
-            <p className="text-sm text-red-300">{bookingsError}</p>
-          ) : myBookings.length === 0 ? (
-            <p className="text-sm text-dark-400">Aún no tienes reservas para esta clase.</p>
-          ) : (
-            <div className="space-y-2">
-              {myBookings.map((booking) => {
-                const session = booking.class_sessions;
-                if (!session) return null;
-                const starts = new Date(session.starts_at);
-                return (
-                  <div key={booking.id} className="rounded-lg border border-dark-800 bg-dark-950/60 px-3 py-2 flex items-center justify-between gap-3">
-                    <p className="text-sm text-dark-100">
-                      {starts.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short' })}
-                      {' · '}
-                      {starts.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                    <button
-                      onClick={async () => {
-                        await cancelClass(booking.session_id);
-                        await syncAll();
-                      }}
-                      disabled={cancelling}
-                      className="text-xs text-red-300 hover:text-red-200 disabled:opacity-60"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        <section className="bg-dark-900 border border-dark-800 rounded-xl p-4">
-          <h2 className="text-lg font-semibold text-dark-50 mb-3">Horarios disponibles</h2>
-
-          {sessionsLoading ? (
-            <div className="animate-pulse h-20 bg-dark-800 rounded" />
-          ) : sessionsError ? (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4">
-              <p className="text-sm text-red-300 mb-2">{sessionsError}</p>
-              <button onClick={refreshSessions} className="px-3 py-2 rounded-lg bg-dark-800 hover:bg-dark-700 text-dark-100 text-sm">Reintentar</button>
-            </div>
-          ) : sessions.length === 0 ? (
-            <p className="text-sm text-dark-400">No hay sesiones futuras para esta clase.</p>
-          ) : (
-            <div className="space-y-3">
-              {sessions.map((session) => {
-                const starts = new Date(session.starts_at);
-                const ends = new Date(session.ends_at);
-                const capacity = session.capacity_override ?? session.classes.capacity;
-                const isBooked = session.availabilityState === 'booked';
-                const isCancelled = session.availabilityState === 'cancelled';
-                const isFull = session.availabilityState === 'full';
-
-                return (
-                  <article key={session.id} className="rounded-lg border border-dark-800 bg-dark-950/60 p-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-dark-100">
-                          {starts.toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: 'short' })}
-                          {' · '}
-                          {starts.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                          {' - '}
-                          {ends.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                        <p className={`text-xs mt-1 ${availabilityStyle(session.remainingSpots)}`}>
-                          {session.remainingSpots}/{capacity} plazas libres
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {isCancelled && (
-                          <span className="px-2 py-1 rounded-full text-[11px] border bg-dark-700 text-dark-300 border-dark-600">
-                            Cancelada
-                          </span>
-                        )}
-
-                        {isBooked && (
-                          <button
-                            onClick={async () => {
-                              await cancelClass(session.id);
-                              await syncAll();
-                            }}
-                            disabled={cancelling}
-                            className="px-3 py-2 rounded-lg bg-red-600/90 hover:bg-red-500 text-white text-sm disabled:opacity-60"
-                          >
-                            Cancelar
-                          </button>
-                        )}
-
-                        {!isBooked && !isCancelled && (
-                          <button
-                            onClick={async () => {
-                              await reserveClass(session.id);
-                              await syncAll();
-                            }}
-                            disabled={isFull || reserving}
-                            className="px-3 py-2 rounded-lg bg-primary-600 hover:bg-primary-500 text-white text-sm disabled:opacity-60"
-                          >
-                            {isFull ? 'Completa' : session.remainingSpots <= 3 ? 'Últimas plazas' : 'Reservar'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      </div>
+      <BookingCTA
+        canReserve={canReserve}
+        canCancel={canCancel}
+        isFull={isSessionFull}
+        isProcessing={bookingLoading || cancelLoading}
+        onReserve={onReserve}
+        onCancel={onCancel}
+      />
     </div>
   );
 };
+
+export default ClassDetailsPage;

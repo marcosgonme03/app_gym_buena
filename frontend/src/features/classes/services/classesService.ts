@@ -34,7 +34,7 @@ function mapAvailability(session: ClassSession, bookedCount: number, myBooking: 
 
   let availabilityState: SessionWithAvailability['availabilityState'] = 'available';
   if (session.is_cancelled) availabilityState = 'cancelled';
-  else if (myBooking && myBooking.status !== 'cancelled') availabilityState = 'booked';
+  else if (myBooking && myBooking.status !== 'cancelled' && myBooking.status !== 'CANCELLED') availabilityState = 'booked';
   else if (remainingSpots <= 0) availabilityState = 'full';
   else if (remainingSpots <= 3) availabilityState = 'few_left';
 
@@ -103,18 +103,18 @@ function normalizeClassBooking(row: any): ClassBooking {
 
 async function fetchUsersMap(userIds: string[]) {
   const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
-  if (uniqueIds.length === 0) return new Map<string, { user_id: string; name: string; last_name: string; email: string }>();
+  if (uniqueIds.length === 0) return new Map<string, { user_id: string; name: string; last_name: string; email: string; avatar_url?: string | null }>();
 
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('user_id,name,last_name,email')
+      .select('user_id,name,last_name,email,avatar_url')
       .in('user_id', uniqueIds);
 
-    if (error || !data) return new Map<string, { user_id: string; name: string; last_name: string; email: string }>();
+    if (error || !data) return new Map<string, { user_id: string; name: string; last_name: string; email: string; avatar_url?: string | null }>();
     return new Map(data.map((user) => [user.user_id, user]));
   } catch {
-    return new Map<string, { user_id: string; name: string; last_name: string; email: string }>();
+    return new Map<string, { user_id: string; name: string; last_name: string; email: string; avatar_url?: string | null }>();
   }
 }
 
@@ -265,7 +265,7 @@ export async function fetchClassSessionsByClass(classId: string, from?: string, 
     .from('class_bookings')
     .select('*')
     .in('session_id', sessionIds)
-    .in('status', ['booked', 'attended', 'cancelled', 'no_show']);
+    .in('status', ['booked', 'confirmed', 'attended', 'cancelled', 'CANCELLED', 'no_show']);
 
   if (bookingsError) throw new Error(bookingsError.message);
 
@@ -273,7 +273,7 @@ export async function fetchClassSessionsByClass(classId: string, from?: string, 
 
   return sessions.map((session) => {
     const sessionBookings = bookings.filter((booking) => booking.session_id === session.id);
-    const activeBookings = sessionBookings.filter((booking) => booking.status === 'booked' || booking.status === 'attended');
+    const activeBookings = sessionBookings.filter((booking) => booking.status === 'booked' || booking.status === 'confirmed' || booking.status === 'attended');
     const myBooking = userId ? sessionBookings.find((booking) => booking.user_id === userId) || null : null;
     return mapAvailability(session, activeBookings.length, myBooking);
   });
@@ -310,7 +310,39 @@ export async function fetchMyBookingsForClass(classId: string, limit = 5): Promi
     .order('booked_at', { ascending: true })
     .limit(limit);
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    const fallback = await supabase
+      .from('class_bookings')
+      .select(`
+        *,
+        class_sessions!inner (
+          *,
+          classes!inner (
+            id,
+            title,
+            slug,
+            description,
+            trainer_user_id,
+            level,
+            duration_min,
+            capacity,
+            cover_image_url,
+            is_active,
+            created_at,
+            updated_at
+          )
+        )
+      `)
+      .eq('status', 'confirmed')
+      .eq('class_sessions.class_id', classId)
+      .gte('class_sessions.starts_at', nowIso)
+      .order('booked_at', { ascending: true })
+      .limit(limit);
+
+    if (fallback.error) throw new Error(fallback.error.message);
+    return enrichClassBookings(fallback.data || []);
+  }
+
   return enrichClassBookings(data || []);
 }
 
@@ -356,7 +388,7 @@ export async function fetchClassesWeek(
     .from('class_bookings')
     .select('*')
     .in('session_id', sessionIds)
-    .in('status', ['booked', 'attended', 'cancelled', 'no_show']);
+    .in('status', ['booked', 'confirmed', 'attended', 'cancelled', 'CANCELLED', 'no_show']);
 
   if (bookingsError) throw new Error(bookingsError.message);
 
@@ -364,7 +396,7 @@ export async function fetchClassesWeek(
 
   const result = sessions.map((session) => {
     const sessionBookings = bookings.filter((booking) => booking.session_id === session.id);
-    const activeBookings = sessionBookings.filter((booking) => booking.status === 'booked' || booking.status === 'attended');
+    const activeBookings = sessionBookings.filter((booking) => booking.status === 'booked' || booking.status === 'confirmed' || booking.status === 'attended');
     const myBooking = userId ? sessionBookings.find((booking) => booking.user_id === userId) || null : null;
 
     return mapAvailability(session, activeBookings.length, myBooking);
@@ -398,7 +430,7 @@ export async function fetchMyUpcomingBookings(limit = 5): Promise<ClassBooking[]
         )
       )
     `)
-    .eq('status', 'booked')
+    .in('status', ['booked', 'confirmed'])
     .gte('class_sessions.starts_at', nowIso)
     .order('booked_at', { ascending: true })
     .limit(limit);
@@ -419,8 +451,23 @@ export async function fetchTrainersList() {
 }
 
 export async function bookClass(sessionId: string): Promise<BookRpcResult> {
-  const { data, error } = await supabase.rpc('book_class', { p_session_id: sessionId });
-  if (error) throw new Error(error.message);
+  const attempt = await supabase.rpc('book_class_session', { p_session_id: sessionId });
+  let data = attempt.data;
+  let error = attempt.error;
+
+  if (error) {
+    const fallback = await supabase.rpc('book_class', { p_session_id: sessionId });
+    data = fallback.data;
+    error = fallback.error;
+  }
+
+  if (error) {
+    const message = error.message || 'No se pudo reservar la clase';
+    if (message.includes('FULL')) throw new Error('Clase completa. Prueba otro horario.');
+    if (message.includes('ALREADY')) throw new Error('Ya tienes una reserva para esta sesión.');
+    throw new Error(message);
+  }
+
   if ((data as BookRpcResult)?.success) {
     notifyBookingUpdated();
   }

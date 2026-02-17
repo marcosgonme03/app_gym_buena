@@ -7,6 +7,7 @@ import { MemberStatsCard } from '@/components/member/MemberStatsCard';
 import { WeeklyOverviewCard } from '@/components/member/WeeklyOverviewCard';
 import { TodayTrainingCard, TodayTrainingData } from '@/components/member/TodayTrainingCard';
 import { WeeklyProgressCard } from '@/components/member/WeeklyProgressCard';
+import { TodayClassesCard } from '@/components/member/TodayClassesCard';
 import { WeeklyPlanPreviewCard } from '@/features/member/dashboard/WeeklyPlanPreviewCard';
 import { getWeekStart, getWeekEnd } from '@/features/member/workoutPlan/weekHelpers';
 import { useDashboardData } from '@/features/member/dashboard/useDashboardData';
@@ -192,6 +193,10 @@ export const MemberDashboard: React.FC = () => {
                 onRetry={refreshWeeklyProgress}
               />
             </div>
+
+            <div className="hidden lg:block">
+              <TodayClassesCard />
+            </div>
           </div>
 
           {/* Columna Derecha - Sidebar (1/3 en desktop) */}
@@ -220,6 +225,10 @@ export const MemberDashboard: React.FC = () => {
         {/* Mobile: Mostrar stats card */}
         <div className="lg:hidden mt-4 sm:mt-6">
           <MemberStatsCard />
+        </div>
+
+        <div className="lg:hidden mt-4 sm:mt-6 px-3 sm:px-0">
+          <TodayClassesCard />
         </div>
       </main>
 
