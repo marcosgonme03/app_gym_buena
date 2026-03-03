@@ -1,18 +1,29 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Avatar } from '@/components/common/Avatar';
 import { BottomNav } from '@/components/layout/BottomNav';
+import { TopNav } from '@/components/layout/TopNav';
 import { MemberStatsCard } from '@/components/member/MemberStatsCard';
 import { WeeklyOverviewCard } from '@/components/member/WeeklyOverviewCard';
 import { TodayTrainingCard, TodayTrainingData } from '@/components/member/TodayTrainingCard';
 import { WeeklyProgressCard } from '@/components/member/WeeklyProgressCard';
 import { TodayClassesCard } from '@/components/member/TodayClassesCard';
 import { WeeklyPlanPreviewCard } from '@/features/member/dashboard/WeeklyPlanPreviewCard';
+import { WorkoutHeroCard } from '@/components/member/WorkoutHeroCard';
+import { ProgressSummaryCard } from '@/components/member/ProgressSummaryCard';
+import { BodyStatsCard } from '@/components/member/BodyStatsCard';
+import { NutritionPlanCard } from '@/components/member/NutritionPlanCard';
+import { ChallengeCard } from '@/components/member/ChallengeCard';
+import { VideosCard } from '@/components/member/VideosCard';
+import { ArticlesCard } from '@/components/member/ArticlesCard';
 import { getWeekStart, getWeekEnd } from '@/features/member/workoutPlan/weekHelpers';
 import { useDashboardData } from '@/features/member/dashboard/useDashboardData';
 import { useTodayWorkout } from '@/features/member/dashboard/hooks/useTodayWorkout';
 import { useWeeklyProgress } from '@/features/member/dashboard/hooks/useWeeklyProgress';
+import { getMyLatestBodyMetric } from '@/services/bodyMetrics';
+import { getWeeklyTotalWeight } from '@/services/workoutLogs';
+import type { BodyMetric } from '@/lib/supabase/types';
 
 
 export const MemberDashboard: React.FC = () => {
@@ -20,8 +31,7 @@ export const MemberDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [selectedWeekStart] = useState<string>(() => getWeekStart());
   const selectedWeekEnd = useMemo(() => getWeekEnd(selectedWeekStart), [selectedWeekStart]);
-  
-  // Hook centralizado que carga ambos datos en paralelo
+
   const { weeklyStats, planData, loading, reload } = useDashboardData(selectedWeekStart, selectedWeekEnd);
   const {
     data: todayWorkout,
@@ -38,45 +48,56 @@ export const MemberDashboard: React.FC = () => {
     refresh: refreshWeeklyProgress,
   } = useWeeklyProgress(selectedWeekStart, weeklyStats);
 
+  // Body metrics for the circular gauges
+  const [latestMetric, setLatestMetric] = useState<BodyMetric | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(true);
+  useEffect(() => {
+    getMyLatestBodyMetric()
+      .then(m => setLatestMetric(m))
+      .catch(() => setLatestMetric(null))
+      .finally(() => setMetricsLoading(false));
+  }, []);
+
+  // Weekly total weight lifted
+  const [weeklyTotalWeight, setWeeklyTotalWeight] = useState(0);
+  useEffect(() => {
+    getWeeklyTotalWeight(selectedWeekStart, selectedWeekEnd)
+      .then(w => setWeeklyTotalWeight(w))
+      .catch(() => setWeeklyTotalWeight(0));
+  }, [selectedWeekStart, selectedWeekEnd]);
+
   const todayTrainingData = useMemo<TodayTrainingData | null>(() => {
     if (!todayWorkout) return null;
-
     const exercises = todayWorkout.plannedWorkout?.exercises || [];
-
+    // Use session_name from manually-created free session as fallback for the display name
+    const freeSessionName = (todayWorkout.session as any)?.session_name as string | undefined;
+    const workoutType = todayWorkout.plannedWorkout?.name || freeSessionName || 'Plan general';
+    // Treat having ANY session (planned OR free) as having something to show
+    const hasAnySession = Boolean(todayWorkout.plannedWorkout) || Boolean(todayWorkout.session);
+    // Prefer session's estimated_duration_min (set during free session creation) over the calculated fallback
+    const durationMin = (todayWorkout.session as any)?.estimated_duration_min ?? todayWorkout.estimatedDurationMin;
     return {
       status: todayWorkout.status,
-      type: todayWorkout.plannedWorkout?.name || 'Plan general',
-      estimatedDurationMin: todayWorkout.estimatedDurationMin,
+      type: workoutType,
+      estimatedDurationMin: durationMin,
       exerciseCount: todayWorkout.exerciseCount,
-      exercises: exercises.map((exercise) => ({
-        id: exercise.id,
-        name: exercise.exercise_name,
-      })),
-      hasPlannedWorkout: Boolean(todayWorkout.plannedWorkout),
+      exercises: exercises.map((ex) => ({ id: ex.id, name: ex.exercise_name })),
+      hasPlannedWorkout: hasAnySession,
       lastUpdatedLabel: humanLastUpdated,
     };
   }, [todayWorkout, humanLastUpdated]);
 
   const handleTodayPrimaryAction = async () => {
     if (!todayWorkout || !todayTrainingData) return;
-
-    if (!todayTrainingData.hasPlannedWorkout) {
-      navigate('/app/workout-plan');
-      return;
-    }
-
+    // No session of any kind → go to create a workout
+    if (!todayTrainingData.hasPlannedWorkout) { navigate('/app/workout/crear'); return; }
     if (todayWorkout.status === 'not_started') {
       await startWorkout();
       await Promise.all([refreshToday(), refreshWeeklyProgress()]);
       navigate('/app/workout/today');
       return;
     }
-
-    if (todayWorkout.status === 'in_progress') {
-      navigate('/app/workout/today');
-      return;
-    }
-
+    if (todayWorkout.status === 'in_progress') { navigate('/app/workout/today'); return; }
     if (todayWorkout.status === 'completed' && todayWorkout.session?.id) {
       navigate(`/app/workout/summary/${todayWorkout.session.id}`);
     }
@@ -88,94 +109,47 @@ export const MemberDashboard: React.FC = () => {
     navigate('/app/workout/today?manual=1');
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/login');
-  };
+  const handleSignOut = async () => { await signOut(); navigate('/login'); };
 
   if (!profile) return null;
 
   return (
-    <div className="min-h-screen bg-dark-950 dark:bg-dark-950 light:bg-gray-50 pb-20 lg:pb-0">
-      {/* Header Desktop/Mobile Responsive */}
-      <header className="bg-gradient-to-br from-dark-900 to-dark-950 dark:from-dark-900 dark:to-dark-950 light:from-white light:to-gray-50 border-b border-dark-800/50 dark:border-dark-800/50 light:border-gray-200 sticky top-0 z-40">
-        <div className="w-full px-3 sm:px-4 lg:px-8 py-3 sm:py-4 lg:max-w-7xl lg:mx-auto">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Avatar
-                src={profile.avatar_url}
-                name={`${profile.name} ${profile.last_name}`}
-                size="lg"
-              />
-              <div>
-                <h1 className="text-base sm:text-xl lg:text-2xl font-bold text-dark-50 dark:text-dark-50 light:text-gray-900">
-                  Hola, {profile.name} 👋
-                </h1>
-                <p className="text-[10px] sm:text-xs lg:text-sm text-dark-400 dark:text-dark-400 light:text-gray-600">
-                  ¡Listo para entrenar hoy!
-                </p>
+    <>
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+          DESKTOP  (lg+)
+      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      <div className="hidden lg:flex flex-col min-h-screen bg-dark-950">
+        <TopNav />
+
+        <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-10 space-y-7">
+
+          {/* Welcome */}
+          <div className="flex items-end justify-between">
+            <div>
+              <h1 className="text-3xl font-black text-dark-50 tracking-tight leading-tight">
+                Bienvenido de nuevo,{' '}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-primary-300">
+                  {profile.name}
+                </span>
+              </h1>
+              <p className="text-dark-400 mt-1 text-sm font-medium">¡Vamos a entrenar!</p>
+            </div>
+            {/* Streak badge */}
+            {(weeklyStats?.streakDays ?? 0) > 0 && (
+              <div className="flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 text-orange-400 px-4 py-2 rounded-xl flex-shrink-0">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M13.5 0.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67z" />
+                </svg>
+                <span className="text-sm font-bold">{weeklyStats!.streakDays} días</span>
               </div>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-3">
-              <button
-                onClick={() => navigate('/settings')}
-                className="hidden lg:flex p-1.5 sm:p-2 bg-dark-800 hover:bg-dark-700 text-dark-200 dark:bg-dark-800 dark:hover:bg-dark-700 dark:text-dark-200 light:bg-gray-200 light:hover:bg-gray-300 light:text-gray-900 rounded-lg transition-colors"
-                title="Ajustes"
-              >
-                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </button>
-              <button
-                onClick={handleSignOut}
-                className="p-1.5 sm:p-2 lg:px-4 lg:py-2 bg-dark-800/50 hover:bg-dark-800 text-dark-400 dark:bg-dark-800/50 dark:hover:bg-dark-800 dark:text-dark-400 light:bg-gray-200 light:hover:bg-gray-300 light:text-gray-600 rounded-lg transition-colors lg:flex lg:items-center lg:gap-2"
-              >
-                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                <span className="hidden lg:inline text-dark-200 dark:text-dark-200 light:text-gray-900 font-medium">Cerrar sesión</span>
-              </button>
-            </div>
+            )}
           </div>
-        </div>
-      </header>
 
-      <BottomNav />
+          {/* Row 1 â€” 3 columns: workout+nutrition | progress+challenge | body stats */}
+          <div className="grid grid-cols-12 gap-5">
 
-      <main className="w-full max-w-7xl mx-auto px-0 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6">
-        {/* Desktop: Layout de 2 columnas | Mobile: Stack vertical */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Columna Izquierda - Principal (2/3 en desktop) */}
-          <div className="lg:col-span-2 space-y-3 sm:space-y-4 lg:space-y-6">
-            {/* FASE 2: Vista semanal en móvil */}
-            <div className="lg:hidden">
-              <WeeklyOverviewCard 
-                weekStart={selectedWeekStart}
-                weekEnd={selectedWeekEnd}
-                stats={weeklyStats}
-                loading={loading}
-                onReload={reload}
-              />
-            </div>
-            
-            {/* Planificación semanal en móvil */}
-            <div className="lg:hidden">
-              <WeeklyPlanPreviewCard 
-                weekStart={selectedWeekStart}
-                planData={planData}
-                loading={loading}
-              />
-            </div>
-            
-            <div className="text-center py-8 sm:py-12 lg:hidden">
-              <p className="text-sm sm:text-base text-dark-400 dark:text-dark-400 light:text-gray-600">
-                Dashboard en construcción...
-              </p>
-            </div>
-
-            <div className="hidden lg:block">
-              <TodayTrainingCard
+            <div className="col-span-5 space-y-5">
+              <WorkoutHeroCard
                 data={todayTrainingData}
                 loading={todayLoading}
                 error={todayError}
@@ -183,57 +157,108 @@ export const MemberDashboard: React.FC = () => {
                 onPrimaryAction={handleTodayPrimaryAction}
                 onSecondaryAction={handleTodaySecondaryAction}
               />
+              <NutritionPlanCard />
             </div>
 
-            <div className="hidden lg:block">
-              <WeeklyProgressCard
-                data={weeklyProgress}
-                loading={weeklyProgressLoading}
-                error={weeklyProgressError}
-                onRetry={refreshWeeklyProgress}
+            <div className="col-span-4 space-y-5">
+              <ProgressSummaryCard
+                weeklyCount={weeklyStats?.weeklyCount ?? 0}
+                totalWeightKg={weeklyTotalWeight}
+                weeklyGoal={weeklyStats?.weeklyGoal ?? 3}
+                loading={loading}
               />
+              <ChallengeCard />
             </div>
 
-            <div className="hidden lg:block">
-              <TodayClassesCard />
+            <div className="col-span-3">
+              <BodyStatsCard
+                weight={latestMetric?.weight_kg ?? null}
+                bodyFat={(latestMetric as any)?.body_fat_pct ?? null}
+                loading={metricsLoading}
+              />
             </div>
           </div>
 
-          {/* Columna Derecha - Sidebar (1/3 en desktop) */}
-          <div className="hidden lg:block lg:col-span-1 space-y-5 lg:space-y-6">
-            {/* FASE 2: Vista semanal (desktop) */}
-            <WeeklyOverviewCard 
+          {/* Row 2 — Videos + Articles */}
+          <div className="grid grid-cols-2 gap-5">
+            <div className="bg-dark-900 border border-dark-800 rounded-2xl p-6">
+              <VideosCard />
+            </div>
+            <div className="bg-dark-900 border border-dark-800 rounded-2xl p-6">
+              <ArticlesCard />
+            </div>
+          </div>
+
+        </main>
+      </div>
+
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+          MOBILE  (< lg)
+      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      <div className="lg:hidden min-h-screen bg-dark-950 pb-20">
+        <header className="bg-gradient-to-br from-dark-900 to-dark-950 border-b border-dark-800/50 sticky top-0 z-40">
+          <div className="w-full px-3 sm:px-4 py-3 sm:py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Avatar
+                  src={profile.avatar_url}
+                  name={`${profile.name} ${profile.last_name}`}
+                  size="lg"
+                />
+                <div>
+                  <h1 className="text-base sm:text-xl font-bold text-dark-50">
+                    Hola, {profile.name} ðŸ‘‹
+                  </h1>
+                  <p className="text-[10px] sm:text-xs text-dark-400">Â¡Listo para entrenar hoy!</p>
+                </div>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="p-1.5 sm:p-2 bg-dark-800/50 hover:bg-dark-800 text-dark-400 rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <BottomNav />
+
+        <main className="w-full max-w-7xl mx-auto px-0 sm:px-4 md:px-6 py-4 sm:py-6">
+          <div className="space-y-3 sm:space-y-4">
+            <WeeklyOverviewCard
               weekStart={selectedWeekStart}
               weekEnd={selectedWeekEnd}
               stats={weeklyStats}
               loading={loading}
               onReload={reload}
             />
-            
-            {/* Planificación semanal (desktop) */}
-            <WeeklyPlanPreviewCard 
+            <WeeklyPlanPreviewCard
               weekStart={selectedWeekStart}
               planData={planData}
               loading={loading}
             />
-            
-            {/* Tarjeta de estadísticas del miembro */}
+            <TodayTrainingCard
+              data={todayTrainingData}
+              loading={todayLoading}
+              error={todayError}
+              onRetry={refreshToday}
+              onPrimaryAction={handleTodayPrimaryAction}
+              onSecondaryAction={handleTodaySecondaryAction}
+            />
+            <WeeklyProgressCard
+              data={weeklyProgress!}
+              loading={weeklyProgressLoading}
+              error={weeklyProgressError}
+              onRetry={refreshWeeklyProgress}
+            />
+            <TodayClassesCard />
             <MemberStatsCard />
           </div>
-        </div>
-
-        {/* Mobile: Mostrar stats card */}
-        <div className="lg:hidden mt-4 sm:mt-6">
-          <MemberStatsCard />
-        </div>
-
-        <div className="lg:hidden mt-4 sm:mt-6 px-3 sm:px-0">
-          <TodayClassesCard />
-        </div>
-      </main>
-
-    </div>
+        </main>
+      </div>
+    </>
   );
 };
-
-export default MemberDashboard;

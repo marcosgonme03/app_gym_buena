@@ -11,6 +11,8 @@ import { AdminDashboard } from '@/pages/AdminDashboard';
 import { TrainerDashboard } from '@/pages/TrainerDashboard';
 import { Settings } from '@/pages/Settings';
 import { WorkoutPlanPage } from '@/features/member/workoutPlan/WorkoutPlanPage';
+import { WorkoutPage } from '@/pages/WorkoutPage';
+import { WorkoutCreatePage } from '@/pages/WorkoutCreatePage';
 import { TodayWorkout } from '@/pages/TodayWorkout';
 import { WorkoutSummary } from '@/pages/WorkoutSummary';
 import { ClassesListPage } from '@/pages/ClassesListPage';
@@ -62,7 +64,15 @@ export const App: React.FC = () => {
               path="/app/workout"
               element={
                 <ProtectedRoute allowedRoles={['member']}>
-                  <WorkoutPlanPage />
+                  <WorkoutPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/app/workout/crear"
+              element={
+                <ProtectedRoute allowedRoles={['member']}>
+                  <WorkoutCreatePage />
                 </ProtectedRoute>
               }
             />

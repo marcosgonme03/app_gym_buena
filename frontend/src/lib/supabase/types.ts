@@ -40,9 +40,10 @@ export interface UserProfile {
 export interface BodyMetric {
   id: string;
   user_id: string;
-  weight_kg: number;  // Peso en kilogramos
-  height_cm?: number | null;  // Altura en centímetros (opcional, puede duplicarse desde users)
-  recorded_at: string;  // Timestamp de cuándo se registró
+  weight_kg: number;
+  body_fat_pct?: number | null;   // Porcentaje de grasa corporal (añadido con SQL script)
+  height_cm?: number | null;
+  recorded_at: string;
   created_at: string;
 }
 

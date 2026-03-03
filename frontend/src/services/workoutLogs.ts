@@ -411,3 +411,46 @@ export async function getWeeklyWorkoutDistribution(
     return weekDays.map((date, index) => ({ date, label: labels[index], completed: 0 }));
   }
 }
+
+// ============================================
+// 8. TOTAL DE PESO LEVANTADO EN LA SEMANA
+//    Suma total_weight_kg de workout_sessions completadas
+// ============================================
+export async function getWeeklyTotalWeight(weekStart?: string, weekEnd?: string): Promise<number> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return 0;
+
+    // Calcular rango si no se proporciona
+    let startDate = weekStart ?? (() => {
+      const now = new Date();
+      const daysToMonday = now.getDay() === 0 ? -6 : 1 - now.getDay();
+      const s = new Date(now);
+      s.setDate(now.getDate() + daysToMonday);
+      s.setHours(0, 0, 0, 0);
+      return s.toISOString().split('T')[0];
+    })();
+
+    let endDate = weekEnd ?? (() => {
+      const s = new Date(startDate + 'T00:00:00');
+      const e = new Date(s);
+      e.setDate(s.getDate() + 6);
+      return e.toISOString().split('T')[0];
+    })();
+
+    const { data, error } = await supabase
+      .from('workout_sessions')
+      .select('total_weight_kg')
+      .eq('user_id', user.id)
+      .gte('workout_date', startDate)
+      .lte('workout_date', endDate)
+      .eq('status', 'completed');
+
+    if (error) throw error;
+
+    const total = (data || []).reduce((sum, s) => sum + (Number(s.total_weight_kg) || 0), 0);
+    return Math.round(total);
+  } catch {
+    return 0;
+  }
+}
