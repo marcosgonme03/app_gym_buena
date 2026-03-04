@@ -125,7 +125,7 @@ export const MacroPieChart: React.FC<BaseProps & { data: MacroDistribution[] }> 
         </Pie>
         <Tooltip
           contentStyle={{ backgroundColor: '#0f1117', border: '1px solid #1e2130', borderRadius: 8 }}
-          formatter={(value: number | undefined, name: string) => [`${(value ?? 0).toLocaleString('es-ES')}g`, name]}
+          formatter={(value?: number, name?: string) => [`${(value ?? 0).toLocaleString('es-ES')}g`, name ?? '']}
         />
         <Legend wrapperStyle={{ fontSize: 11, color: '#64748b' }} />
       </PieChart>
@@ -233,7 +233,7 @@ export const WeightProgressChart: React.FC<BaseProps & { data: WeightProgressPoi
         <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
         <YAxis tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
         <Tooltip {...tooltipStyle} itemStyle={{ color: '#fb923c' }}
-          formatter={(v: number | undefined) => [`${(v ?? 0).toLocaleString('es-ES')} kg`, 'Peso total']} />
+          formatter={(v?: number) => [`${(v ?? 0).toLocaleString('es-ES')} kg`, 'Peso total']} />
         <Area type="monotone" dataKey="Peso kg" stroke="#f97316" strokeWidth={2}
           fill="url(#weightGrad)" dot={{ fill: '#f97316', r: 3 }} />
       </AreaChart>
