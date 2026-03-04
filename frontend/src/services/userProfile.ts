@@ -124,14 +124,9 @@ function validateProfilePayload(payload: UpdateProfilePayload): ProfileServiceEr
  */
 export async function getMyProfile(): Promise<UserProfile | null> {
   try {
-    console.log('[ProfileService] Fetching profile...');
-
     const { data: { user } } = await supabase.auth.getUser();
     
-    if (!user) {
-      console.error('[ProfileService] No authenticated user');
-      return null;
-    }
+    if (!user) return null;
 
     const { data, error } = await supabase
       .from('users')
@@ -139,20 +134,11 @@ export async function getMyProfile(): Promise<UserProfile | null> {
       .eq('user_id', user.id)
       .single();
 
-    if (error) {
-      console.error('[ProfileService] Error fetching profile:', error);
-      throw new Error(`Error al cargar perfil: ${error.message}`);
-    }
+    if (error) throw new Error(`Error al cargar perfil: ${error.message}`);
+    if (!data) return null;
 
-    if (!data) {
-      console.error('[ProfileService] Profile not found for user:', user.id);
-      return null;
-    }
-
-    console.log('[ProfileService] Profile loaded:', { user_id: data.user_id, role: data.role });
     return data as UserProfile;
   } catch (error: any) {
-    console.error('[ProfileService] Unexpected error:', error);
     throw error;
   }
 }
@@ -163,9 +149,6 @@ export async function getMyProfile(): Promise<UserProfile | null> {
  */
 export async function updateMyProfile(payload: UpdateProfilePayload): Promise<UserProfile> {
   try {
-    console.log('[ProfileService] Updating profile:', payload);
-
-    // Validar payload
     const validationError = validateProfilePayload(payload);
     if (validationError) {
       throw new Error(validationError.message);
@@ -177,9 +160,8 @@ export async function updateMyProfile(payload: UpdateProfilePayload): Promise<Us
       throw new Error('Usuario no autenticado');
     }
 
-    // Preparar datos para actualizar
-    // Convertir strings vacías a null para campos opcionales
-    const updateData: any = {
+    // Preparar datos para actualizar (strings vacías → null para campos opcionales)
+    const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString()
     };
 
@@ -234,8 +216,6 @@ export async function updateMyProfile(payload: UpdateProfilePayload): Promise<Us
       updateData.onboarding_completed = payload.onboarding_completed;
     }
 
-    console.log('[ProfileService] Update data prepared:', updateData);
-
     // Ejecutar UPDATE con .select() para obtener el resultado
     const { data, error } = await supabase
       .from('users')
@@ -245,9 +225,6 @@ export async function updateMyProfile(payload: UpdateProfilePayload): Promise<Us
       .single();
 
     if (error) {
-      console.error('[ProfileService] Update error:', error);
-      
-      // Mensajes de error más amigables
       if (error.code === 'PGRST301') {
         throw new Error('No se encontró el perfil del usuario');
       }
@@ -262,10 +239,8 @@ export async function updateMyProfile(payload: UpdateProfilePayload): Promise<Us
       throw new Error('No se recibió confirmación de la actualización');
     }
 
-    console.log('[ProfileService] Profile updated successfully:', { user_id: data.user_id });
     return data as UserProfile;
   } catch (error: any) {
-    console.error('[ProfileService] Update failed:', error);
     throw error;
   }
 }
@@ -274,31 +249,13 @@ export async function updateMyProfile(payload: UpdateProfilePayload): Promise<Us
  * Actualizar avatar del usuario
  */
 export async function updateMyAvatar(avatarUrl: string): Promise<void> {
-  try {
-    console.log('[ProfileService] Updating avatar URL:', avatarUrl);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Usuario no autenticado');
 
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('Usuario no autenticado');
-    }
+  const { error } = await supabase
+    .from('users')
+    .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+    .eq('user_id', user.id);
 
-    const { error } = await supabase
-      .from('users')
-      .update({ 
-        avatar_url: avatarUrl,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', user.id);
-
-    if (error) {
-      console.error('[ProfileService] Avatar update error:', error);
-      throw new Error(`Error al actualizar avatar: ${error.message}`);
-    }
-
-    console.log('[ProfileService] Avatar updated successfully');
-  } catch (error: any) {
-    console.error('[ProfileService] Avatar update failed:', error);
-    throw error;
-  }
+  if (error) throw new Error(`Error al actualizar avatar: ${error.message}`);
 }

@@ -157,9 +157,16 @@ async function fetchUsersMap(userIds: string[]) {
       .select('user_id,name,last_name,email,avatar_url')
       .in('user_id', uniqueIds);
 
-    if (error || !data) return new Map<string, { user_id: string; name: string; last_name: string; email: string; avatar_url?: string | null }>();
+    if (error) {
+      if (error.code !== 'PGRST116') {
+        console.warn('[classesService] fetchUsersMap error:', error.code, error.message);
+      }
+      return new Map<string, { user_id: string; name: string; last_name: string; email: string; avatar_url?: string | null }>();
+    }
+    if (!data) return new Map<string, { user_id: string; name: string; last_name: string; email: string; avatar_url?: string | null }>();
     return new Map(data.map((user) => [user.user_id, user]));
-  } catch {
+  } catch (err: unknown) {
+    console.warn('[classesService] fetchUsersMap unexpected error:', err);
     return new Map<string, { user_id: string; name: string; last_name: string; email: string; avatar_url?: string | null }>();
   }
 }

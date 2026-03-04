@@ -2,9 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase/client';
 import { Avatar } from '@/components/common/Avatar';
-import { updateMyProfile, updateMyAvatar } from '@/services/userProfile';
+import { uploadAvatar } from '@/services/avatarUpload';
+import { updateMyProfile } from '@/services/userProfile';
 import { getMyLatestBodyMetric, insertBodyMetric } from '@/services/bodyMetrics';
 import { GoalType } from '@/lib/supabase/types';
 
@@ -204,39 +204,11 @@ export const Settings: React.FC = () => {
 
       try {
         const fileName = `${profile.user_id}/avatar.jpg`;
-
-        // Eliminar avatar anterior
-        const { data: existingFiles } = await supabase.storage
-          .from('avatars')
-          .list(profile.user_id);
-
-        if (existingFiles && existingFiles.length > 0) {
-          const filesToRemove = existingFiles.map(x => `${profile.user_id}/${x.name}`);
-          await supabase.storage.from('avatars').remove(filesToRemove);
-        }
-
-        // Subir nueva foto
-        const { error: uploadError } = await supabase.storage
-          .from('avatars')
-          .upload(fileName, blob, { upsert: true, contentType: 'image/jpeg' });
-
-        if (uploadError) throw uploadError;
-
-        // Obtener URL pública
-        const { data: { publicUrl } } = supabase.storage
-          .from('avatars')
-          .getPublicUrl(fileName);
-
-        const avatarUrlWithCache = publicUrl + '?t=' + Date.now();
-
-        // Actualizar en base de datos usando servicio
-        await updateMyAvatar(avatarUrlWithCache);
-
+        await uploadAvatar(profile.user_id, blob, fileName, 'image/jpeg');
         await refreshProfile();
         setMessage({ type: 'success', text: '¡Foto capturada correctamente!' });
         setTimeout(() => setMessage(null), 3000);
       } catch (error: any) {
-        console.error('[Settings] Error al capturar foto:', error);
         setMessage({ type: 'error', text: error.message || 'Error al capturar la foto' });
       } finally {
         setUploadingAvatar(false);
@@ -262,40 +234,12 @@ export const Settings: React.FC = () => {
     setMessage(null);
 
     try {
-      console.log('[Settings] Subiendo avatar:', fileName);
-
-      // Eliminar avatar anterior si existe
-      const { data: existingFiles } = await supabase.storage
-        .from('avatars')
-        .list(profile.user_id);
-
-      if (existingFiles && existingFiles.length > 0) {
-        const filesToRemove = existingFiles.map(x => `${profile.user_id}/${x.name}`);
-        await supabase.storage.from('avatars').remove(filesToRemove);
-      }
-
-      // Subir nuevo avatar
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      // Obtener URL pública con timestamp para evitar cache
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
-
-      const avatarUrlWithCache = publicUrl + '?t=' + Date.now();
-
-      // Actualizar URL en la base de datos usando servicio
-      await updateMyAvatar(avatarUrlWithCache);
-
+      const contentType = file.type || 'image/jpeg';
+      await uploadAvatar(profile.user_id, file, fileName, contentType);
       await refreshProfile();
       setMessage({ type: 'success', text: '¡Foto actualizada correctamente!' });
       setTimeout(() => setMessage(null), 3000);
     } catch (error: any) {
-      console.error('[Settings] Error al subir foto:', error);
       setMessage({ type: 'error', text: error.message || 'Error al subir la foto' });
     } finally {
       setUploadingAvatar(false);

@@ -255,6 +255,7 @@ export const MemberDashboard: React.FC = () => {
               onRetry={refreshWeeklyProgress}
             />
             <TodayClassesCard />
+            <NutritionPlanCard />
             <MemberStatsCard />
           </div>
         </main>
