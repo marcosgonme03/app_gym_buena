@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { Session } from '@supabase/supabase-js';
+import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/client';
 import { UserProfile } from '@/lib/supabase/types';
 import { getUserProfile } from '@/lib/auth/getProfile';
 
 interface AuthContextType {
+  user: User | null;
   session: Session | null;
   profile: UserProfile | null;
   loading: boolean;
@@ -128,7 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ session, profile, loading, error, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user: session?.user ?? null, session, profile, loading, error, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

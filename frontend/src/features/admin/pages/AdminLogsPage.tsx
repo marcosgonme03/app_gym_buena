@@ -38,7 +38,7 @@ export const AdminLogsPage: React.FC = () => {
   const load = useCallback(() => {
     setLoading(true);
     getRecentActivity()
-      .then((data) => setLogs(data as ActivityEntry[]))
+      .then((data) => setLogs(data as unknown as ActivityEntry[]))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
